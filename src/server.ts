@@ -582,7 +582,7 @@ async function startServer() {
         }
       } else {
         // OpenAI API using official SDK
-        const model = 'gpt-4o-mini'
+        const model = 'gpt-5-mini'
         const openai = new OpenAI({
           apiKey,
           timeout: 30000,
@@ -592,7 +592,7 @@ async function startServer() {
         const requestBody = {
           model,
           messages,
-          max_completion_tokens: 500,
+          max_completion_tokens: 1000, // Increased for reasoning models
         }
 
         // Log complete request to console (no truncation)
