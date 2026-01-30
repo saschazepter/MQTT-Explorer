@@ -483,8 +483,7 @@ describe('MQTT Explorer UI Tests', function () {
       expect(messagesBefore).to.be.greaterThan(0)
       
       // When: Clear button is clicked (button appears when there are messages)
-      // The clear button has ClearIcon but no explicit data-testid, we can find it by the icon
-      const clearButton = page.locator('button').filter({ has: page.locator('svg[data-testid="ClearIcon"]') })
+      const clearButton = page.getByTestId('ai-assistant-clear')
       await clearButton.waitFor({ state: 'visible', timeout: 5000 })
       await clearButton.click()
       await sleep(500)

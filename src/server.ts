@@ -582,7 +582,7 @@ async function startServer() {
         }
       } else {
         // OpenAI API using official SDK
-        const model = 'gpt-5-mini'
+        const model = 'gpt-4o-mini'
         const openai = new OpenAI({
           apiKey,
           timeout: 30000,

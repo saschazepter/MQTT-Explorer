@@ -453,7 +453,12 @@ function AIAssistant(props: Props) {
           {/* Input */}
           <Box className={classes.inputContainer}>
             {messages.length > 0 && (
-              <IconButton size="small" onClick={handleClearChat} className={classes.clearButton}>
+              <IconButton 
+                size="small" 
+                onClick={handleClearChat} 
+                className={classes.clearButton}
+                data-testid="ai-assistant-clear"
+              >
                 <ClearIcon fontSize="small" />
               </IconButton>
             )}
