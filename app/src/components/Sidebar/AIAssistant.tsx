@@ -396,6 +396,8 @@ function AIAssistant(props: Props) {
                         role: msg.role,
                         content: msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : ''),
                         fullContent: msg.content,
+                        hasTopicContext: msg.role === 'user' && msg.content.startsWith('Context:'),
+                        contentLength: msg.content.length,
                         timestamp: msg.timestamp.toISOString(),
                         proposals: msg.proposals?.length || 0,
                         questionProposals: msg.questionProposals?.length || 0,

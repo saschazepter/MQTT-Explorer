@@ -456,6 +456,27 @@ async function startServer() {
   // LLM Chat RPC handler - proxies requests to LLM providers via WebSocket
   backendRpc.on(RpcEvents.llmChat, async ({ messages, topicContext }) => {
     try {
+      // Log received parameters
+      console.log('\n' + '='.repeat(80))
+      console.log('LLM RPC HANDLER - Received Request')
+      console.log('='.repeat(80))
+      console.log('Messages count:', messages?.length || 0)
+      console.log('Topic context provided:', !!topicContext)
+      if (topicContext) {
+        console.log('Topic context length:', topicContext.length, 'characters')
+        console.log('Topic context preview:', topicContext.substring(0, 200) + '...')
+      }
+      
+      // Log the last user message to verify context is included
+      const lastUserMessage = messages?.filter((m: any) => m.role === 'user').slice(-1)[0]
+      if (lastUserMessage) {
+        console.log('\nLast user message:')
+        console.log('Content length:', lastUserMessage.content.length, 'characters')
+        console.log('Content starts with "Context:"?', lastUserMessage.content.startsWith('Context:'))
+        console.log('Content preview:', lastUserMessage.content.substring(0, 500))
+      }
+      console.log('='.repeat(80) + '\n')
+      
       // Get LLM configuration from environment
       const envProvider = process.env.LLM_PROVIDER
       let provider: 'openai' | 'gemini' = 'openai'

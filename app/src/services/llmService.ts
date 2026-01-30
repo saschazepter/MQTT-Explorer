@@ -423,6 +423,11 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       let messageContent = userMessage
       if (topicContext) {
         messageContent = `Context:\n${topicContext}\n\nUser Question: ${userMessage}`
+        console.log('LLM Service: Topic context added to message')
+        console.log('Context length:', topicContext.length, 'characters')
+        console.log('Context preview:', topicContext.substring(0, 200) + '...')
+      } else {
+        console.log('LLM Service: No topic context provided')
       }
 
       // Add user message to history
@@ -430,6 +435,10 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         role: 'user',
         content: messageContent,
       })
+      
+      console.log('LLM Service: User message added to history')
+      console.log('Message content length:', messageContent.length, 'characters')
+      console.log('Message preview:', messageContent.substring(0, 300) + '...')
 
       // Call backend via RPC (WebSocket) instead of HTTP
       const result = await backendRpc.call(RpcEvents.llmChat, {
