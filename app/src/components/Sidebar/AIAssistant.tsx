@@ -140,7 +140,9 @@ function AIAssistant(props: Props) {
         setMessages(prev => [...prev, assistantMessage])
       } catch (err: unknown) {
         const error = err as { message?: string }
-        setError(error.message || 'Failed to get response')
+        console.error('AI Assistant error:', err)
+        console.error('Error details:', error)
+        setError(error.message || 'Failed to get response from AI assistant')
       } finally {
         setLoading(false)
       }

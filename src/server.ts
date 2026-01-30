@@ -633,9 +633,22 @@ async function startServer() {
       }
 
       // Return the response with debug info
+      console.log('\n' + '='.repeat(80))
+      console.log('LLM RPC HANDLER - Returning response')
+      console.log('='.repeat(80))
+      console.log('Response length:', response.length)
+      console.log('Has debugInfo:', !!debugInfo)
+      console.log('='.repeat(80) + '\n')
+      
       return { response, debugInfo }
     } catch (error: any) {
-      console.error('LLM RPC error:', error.message)
+      console.error('\n' + '='.repeat(80))
+      console.error('LLM RPC ERROR')
+      console.error('='.repeat(80))
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+      console.error('Full error:', inspect(error, { depth: null, colors: true }))
+      console.error('='.repeat(80) + '\n')
 
       // Handle OpenAI SDK errors
       if (error.status === 401 || error.status === 403) {

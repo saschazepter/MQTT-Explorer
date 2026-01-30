@@ -437,12 +437,20 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         topicContext,
       })
 
+      console.log('LLM Service: Received result from backend:', result)
+      console.log('LLM Service: Has response:', !!result?.response)
+      console.log('LLM Service: Has debugInfo:', !!result?.debugInfo)
+
       if (!result || !result.response) {
+        console.error('LLM Service: Invalid result from backend:', result)
         throw new Error('No response from AI assistant')
       }
 
       const assistantMessage = result.response
       const debugInfo = result.debugInfo
+      
+      console.log('LLM Service: Assistant message length:', assistantMessage.length)
+      console.log('LLM Service: Debug info:', debugInfo)
 
       // Add assistant response to history
       this.conversationHistory.push({
