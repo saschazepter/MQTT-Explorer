@@ -177,7 +177,7 @@ Each test run makes **2 LLM API calls**:
 2. Respond to user message
 
 **Estimated Cost per Test Run:**
-- OpenAI (gpt-4o-mini): ~$0.001 - $0.005
+- OpenAI (gpt-5-mini): ~$0.001 - $0.005
 - Gemini (flash): Usually free tier
 
 **Total tokens per run:** ~1,000-2,000 tokens

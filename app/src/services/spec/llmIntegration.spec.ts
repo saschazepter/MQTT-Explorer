@@ -62,13 +62,13 @@ You can include multiple proposals if there are multiple relevant actions.`
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
-          model: 'gpt-4o-mini',
+          model: 'gpt-5-mini',
           messages: [
             { role: 'system', content: systemMessage },
             { role: 'user', content: messageContent },
           ],
-          temperature: 0.7,
-          max_tokens: 1000,
+          max_completion_tokens: 1000,
+          reasoning_effort: "minimal",
         },
         {
           headers: {

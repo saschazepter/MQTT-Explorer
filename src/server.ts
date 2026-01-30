@@ -593,6 +593,7 @@ async function startServer() {
           model,
           messages,
           max_completion_tokens: 1000, // Increased for reasoning models
+          reasoning_effort: "minimal" as const, // Reduce reasoning tokens for efficiency
         }
 
         // Log complete request to console (no truncation)
