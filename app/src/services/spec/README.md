@@ -50,21 +50,11 @@ cd app && yarn test
 ```
 
 ### 3. Live LLM Integration Tests (`llmIntegration.spec.ts`)
-**✨ IMPROVED:** Tests now make real API calls to validate LLM behavior!
-
-These tests validate the complete LLM integration:
-- **Home automation system detection** - Recognizes zigbee2mqtt, Home Assistant, Tasmota patterns
-- **Proposal quality** - Validates API generates correct MQTT messages with proper topics and payloads
-- **Question generation** - Tests follow-up question suggestions
-- **Edge cases** - Handles sensors, nested topics, special characters
-
-**Features:**
-- ✅ Real API calls to OpenAI (gpt-4o-mini) or Gemini (gemini-1.5-flash-latest)
-- ✅ Comprehensive response validation
-- ✅ Detailed logging for debugging
-- ✅ Flexible provider selection (OpenAI/Gemini)
-- ✅ Error handling and retry logic
-- ✅ Validates proposal structure, topic format, and payload correctness
+Optional tests that make real API calls to validate LLM behavior:
+- Home automation system detection
+- Proposal quality with real LLM responses
+- Question generation quality
+- Edge cases and complex scenarios
 
 **Requirements:**
 - OpenAI API key (or Gemini API key)
@@ -82,9 +72,6 @@ export RUN_LLM_TESTS=true
 
 # Run tests
 cd app && yarn test
-
-# Or use the helper script (recommended)
-OPENAI_API_KEY=sk-your-key ./scripts/run-llm-tests.sh
 ```
 
 ## Testing Framework
@@ -245,45 +232,6 @@ Example GitHub Actions:
 1. Add unit tests to `llmService.spec.ts`
 2. Add integration scenarios to `llmIntegration.spec.ts`
 3. Update this README
-
-## Recent Improvements (2026-01)
-
-### Live API Integration Tests
-The LLM integration tests have been significantly improved:
-
-**What Changed:**
-- ✅ Tests now make **real API calls** to OpenAI or Gemini (previously just mock validations)
-- ✅ Added comprehensive **response validation** including:
-  - Topic format verification (zigbee2mqtt, Home Assistant, Tasmota patterns)
-  - Payload structure validation (JSON for zigbee2mqtt, simple strings for Tasmota)
-  - QoS level checks (0, 1, or 2)
-  - Description quality (actionable, concise, clear)
-- ✅ **Multi-provider support** - Works with both OpenAI (gpt-4o-mini) and Gemini (gemini-1.5-flash-latest)
-- ✅ **Better error handling** - Detailed logging for debugging failures, sanitized error messages
-- ✅ **Improved test coverage** - Tests for:
-  - Multiple home automation systems (zigbee2mqtt, Home Assistant, Tasmota)
-  - Edge cases (sensors, nested topics, special characters)
-  - Question generation quality
-  - Proposal completeness and security
-
-**Why These Changes:**
-- Tests now validate the actual LLM behavior, not just expected structures
-- Catches issues with system prompts, context generation, and parsing
-- Ensures high-quality proposals for end users
-- Provides confidence in LLM feature quality
-
-**Running the Improved Tests:**
-```bash
-# Easy way - use the helper script
-OPENAI_API_KEY=sk-your-key ./scripts/run-llm-tests.sh
-
-# Manual way
-export RUN_LLM_TESTS=true
-export OPENAI_API_KEY=sk-your-key
-cd app && yarn test
-```
-
-**Note:** Live tests cost a few cents per run due to API usage. Use responsibly!
 
 ## Best Practices
 
