@@ -172,6 +172,13 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
   }
 
   /**
+   * Get the system message (for debugging purposes)
+   */
+  public getSystemMessage(): string {
+    return this.conversationHistory[0]?.content || ''
+  }
+
+  /**
    * Estimate tokens in text (rough approximation: ~4 characters per token)
    */
   private estimateTokens(text: string): number {

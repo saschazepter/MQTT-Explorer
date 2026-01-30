@@ -3,6 +3,7 @@ import * as http from 'http'
 import * as path from 'path'
 import { Server } from 'socket.io'
 import { promises as fsPromise } from 'fs'
+import { inspect } from 'util'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { body, validationResult } from 'express-validator'
@@ -508,6 +509,17 @@ async function startServer() {
           },
         }
 
+        // Log complete request to console (no truncation)
+        console.log('\n' + '='.repeat(80))
+        console.log('LLM REQUEST (Gemini)')
+        console.log('='.repeat(80))
+        console.log('Provider:', provider)
+        console.log('Model:', model)
+        console.log('Messages Count:', messages.length)
+        console.log('\nFull Request Body:')
+        console.log(inspect(requestBody, { depth: null, colors: true, maxArrayLength: null }))
+        console.log('='.repeat(80) + '\n')
+
         const startTime = Date.now()
         const geminiResponse = await axios.post(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -517,6 +529,15 @@ async function startServer() {
           }
         )
         const endTime = Date.now()
+
+        // Log complete response to console (no truncation)
+        console.log('\n' + '='.repeat(80))
+        console.log('LLM RESPONSE (Gemini)')
+        console.log('='.repeat(80))
+        console.log('Duration:', endTime - startTime, 'ms')
+        console.log('\nFull Response:')
+        console.log(inspect(geminiResponse.data, { depth: null, colors: true, maxArrayLength: null }))
+        console.log('='.repeat(80) + '\n')
 
         if (!geminiResponse.data.candidates || geminiResponse.data.candidates.length === 0) {
           throw new Error('No response from Gemini')
@@ -553,9 +574,34 @@ async function startServer() {
           max_completion_tokens: 500,
         }
 
+        // Log complete request to console (no truncation)
+        console.log('\n' + '='.repeat(80))
+        console.log('LLM REQUEST (OpenAI)')
+        console.log('='.repeat(80))
+        console.log('Provider:', 'openai')
+        console.log('Model:', model)
+        console.log('Messages Count:', messages.length)
+        console.log('\nFull Request Body:')
+        console.log(inspect(requestBody, { depth: null, colors: true, maxArrayLength: null }))
+        console.log('\nSystem Message:')
+        const systemMsg = messages.find((msg: any) => msg.role === 'system')
+        if (systemMsg) {
+          console.log(inspect(systemMsg, { depth: null, colors: true }))
+        }
+        console.log('='.repeat(80) + '\n')
+
         const startTime = Date.now()
         const openaiResponse = await openai.chat.completions.create(requestBody)
         const endTime = Date.now()
+
+        // Log complete response to console (no truncation)
+        console.log('\n' + '='.repeat(80))
+        console.log('LLM RESPONSE (OpenAI)')
+        console.log('='.repeat(80))
+        console.log('Duration:', endTime - startTime, 'ms')
+        console.log('\nFull Response:')
+        console.log(inspect(openaiResponse, { depth: null, colors: true, maxArrayLength: null }))
+        console.log('='.repeat(80) + '\n')
 
         if (!openaiResponse.choices || openaiResponse.choices.length === 0) {
           throw new Error('No response from OpenAI')

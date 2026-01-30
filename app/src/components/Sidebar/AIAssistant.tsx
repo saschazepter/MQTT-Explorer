@@ -384,10 +384,16 @@ function AIAssistant(props: Props) {
                 <pre className={classes.debugPre}>
                   {JSON.stringify(
                     {
+                      systemMessage: {
+                        role: 'system',
+                        content: llmService.getSystemMessage(),
+                        note: 'This is the system prompt that provides context to the LLM',
+                      },
                       messages: messages.map((msg, idx) => ({
                         index: idx,
                         role: msg.role,
                         content: msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : ''),
+                        fullContent: msg.content,
                         timestamp: msg.timestamp.toISOString(),
                         proposals: msg.proposals?.length || 0,
                         questionProposals: msg.questionProposals?.length || 0,
