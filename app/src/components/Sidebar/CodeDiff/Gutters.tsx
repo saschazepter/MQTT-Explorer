@@ -1,11 +1,12 @@
 import * as diff from 'diff'
-import * as q from '../../../../../backend/src/Model'
 import * as React from 'react'
 import ChartPreview from './ChartPreview'
 import { JsonPropertyLocation } from '../../../../../backend/src/JsonAstParser'
-import { lineChangeStyle, trimNewlineRight } from './util'
 import { Theme } from '@mui/material'
 import { withStyles } from '@mui/styles'
+import * as q from '../../../../../backend/src/Model'
+import { lineChangeStyle, trimNewlineRight } from './util'
+import ChartPreview from './ChartPreview'
 
 interface Props {
   changes: Array<diff.Change>
@@ -45,7 +46,7 @@ const style = (theme: Theme) => {
       },
     },
     gutterLine: {
-      textAlign: 'right' as 'right',
+      textAlign: 'right' as const,
       paddingRight: theme.spacing(0.5),
       height: '16px',
       width: '100%',
@@ -57,7 +58,7 @@ function tokensForLine(change: diff.Change, line: number, props: Props) {
   const { classes, literalPositions } = props
   const literal = literalPositions[line]
 
-  const chartPreview = Boolean(literal) ? (
+  const chartPreview = literal ? (
     <ChartPreview
       key="chartPreview"
       treeNode={props.treeNode}
@@ -80,13 +81,21 @@ function tokensForLine(change: diff.Change, line: number, props: Props) {
       />,
     ]
   }
+  return [
+    chartPreview,
+    <div
+      key="placeholder"
+      style={{ width: '12px', display: 'inline-block' }}
+      dangerouslySetInnerHTML={{ __html: '&nbsp;' }}
+    />,
+  ]
 }
 
 function Gutters(props: Props) {
   let currentLine = -1
   const gutters = props.changes
-    .map((change, key) => {
-      return trimNewlineRight(change.value)
+    .map((change, key) =>
+      trimNewlineRight(change.value)
         .split('\n')
         .map((_, idx) => {
           currentLine = !change.removed ? currentLine + 1 : currentLine
@@ -96,7 +105,7 @@ function Gutters(props: Props) {
             </div>
           )
         })
-    })
+    )
     .reduce((a, b) => a.concat(b), [])
 
   return (
