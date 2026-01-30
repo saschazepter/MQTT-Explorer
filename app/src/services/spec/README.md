@@ -59,7 +59,7 @@ These tests validate the complete LLM integration:
 - **Edge cases** - Handles sensors, nested topics, special characters
 
 **Features:**
-- ✅ Real API calls to OpenAI or Gemini
+- ✅ Real API calls to OpenAI (gpt-4o-mini) or Gemini (gemini-1.5-flash-latest)
 - ✅ Comprehensive response validation
 - ✅ Detailed logging for debugging
 - ✅ Flexible provider selection (OpenAI/Gemini)
@@ -258,8 +258,8 @@ The LLM integration tests have been significantly improved:
   - Payload structure validation (JSON for zigbee2mqtt, simple strings for Tasmota)
   - QoS level checks (0, 1, or 2)
   - Description quality (actionable, concise, clear)
-- ✅ **Multi-provider support** - Works with both OpenAI (GPT-4) and Gemini
-- ✅ **Better error handling** - Detailed logging for debugging failures
+- ✅ **Multi-provider support** - Works with both OpenAI (gpt-4o-mini) and Gemini (gemini-1.5-flash-latest)
+- ✅ **Better error handling** - Detailed logging for debugging failures, sanitized error messages
 - ✅ **Improved test coverage** - Tests for:
   - Multiple home automation systems (zigbee2mqtt, Home Assistant, Tasmota)
   - Edge cases (sensors, nested topics, special characters)

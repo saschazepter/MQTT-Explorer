@@ -80,9 +80,11 @@ You can include multiple proposals if there are multiple relevant actions.`
       )
       return response.data.choices[0].message.content
     } else if (provider === 'gemini') {
-      // Gemini API implementation
+      // Gemini API implementation with API key in header
+      // Note: Gemini REST API requires API key in query param as per official docs
+      // See: https://ai.google.dev/gemini-api/docs/get-started/rest
       const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
         {
           contents: [
             {
@@ -100,7 +102,7 @@ You can include multiple proposals if there are multiple relevant actions.`
           headers: {
             'Content-Type': 'application/json',
           },
-          timeout: 30000,
+          timeout: 45000, // Gemini can be slower, allow more time
         }
       )
       return response.data.candidates[0].content.parts[0].text
@@ -108,8 +110,11 @@ You can include multiple proposals if there are multiple relevant actions.`
       throw new Error('No valid LLM provider configured')
     }
   } catch (error: any) {
-    console.error('LLM API call failed:', error.response?.data || error.message)
-    throw error
+    // Sanitize error logging to avoid exposing sensitive data
+    const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error'
+    const statusCode = error.response?.status
+    console.error('LLM API call failed:', { statusCode, message: errorMessage })
+    throw new Error(`LLM API call failed: ${errorMessage}`)
   }
 }
 
@@ -140,8 +145,18 @@ function parseProposals(response: string): MessageProposal[] {
   return proposals
 }
 
+/**
+ * Helper function to validate a proposal structure
+ */
+function validateProposalStructure(proposal: MessageProposal, context: string = '') {
+  expect(proposal.topic, `${context}: topic should be a string`).to.be.a('string').and.have.length.greaterThan(0)
+  expect(proposal.payload, `${context}: payload should be a string`).to.be.a('string')
+  expect(proposal.qos, `${context}: qos should be 0, 1, or 2`).to.be.oneOf([0, 1, 2])
+  expect(proposal.description, `${context}: description should be a string`).to.be.a('string').and.have.length.greaterThan(0)
+}
+
 describe('LLM Integration Tests (Live API)', function () {
-  // Increase timeout for API calls
+  // Increase timeout for API calls (60s for test, up to 45s for API call)
   this.timeout(60000)
 
   before(function () {
@@ -204,11 +219,9 @@ Related Topics (2):
         const payload = JSON.parse(turnOnProposal.payload)
         expect(payload).to.have.property('state')
 
-        // Validate QoS
-        expect(turnOnProposal.qos).to.be.oneOf([0, 1, 2])
+        // Validate structure using helper
+        validateProposalStructure(turnOnProposal, 'zigbee2mqtt turn-on proposal')
 
-        // Validate description
-        expect(turnOnProposal.description).to.be.a('string').and.have.length.greaterThan(0)
         console.log('[TEST] Turn on proposal validated successfully:', turnOnProposal)
       }
     })
