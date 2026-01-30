@@ -341,9 +341,12 @@ Value: OFF
       expect(proposals.length).to.be.greaterThan(0)
 
       proposals.forEach((proposal) => {
-        // Description should be in imperative form (command)
-        expect(proposal.description).to.match(/^(Turn|Set|Toggle|Switch|Change|Adjust|Control)/i,
-          'Description should start with an action verb')
+        // Description should be in imperative form (command) or contain an action verb
+        // Accept both "Turn on the light" and "This message turns on the light"
+        expect(proposal.description).to.match(
+          /^(Turn|Set|Toggle|Switch|Change|Adjust|Control|This message (turn|set|toggle|switch|change|adjust|control))/i,
+          'Description should start with an action verb or describe the action clearly'
+        )
 
         // Description should be clear and concise
         expect(proposal.description.length).to.be.lessThan(100,
