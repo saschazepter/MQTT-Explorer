@@ -20,12 +20,12 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Persist Secrets to Agent Environment
         run: |
           echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env.llm-tests
-
-      - name: Checkout code
-        uses: actions/checkout@v6
 
       - name: Install system dependencies
         run: |
