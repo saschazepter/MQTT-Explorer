@@ -344,7 +344,7 @@ Value: OFF
         // Description should be in imperative form (command) or contain an action verb
         // Accept both "Turn on the light" and "This message turns on the light"
         expect(proposal.description).to.match(
-          /^(Turn|Set|Toggle|Switch|Change|Adjust|Control|This message (turn|set|toggle|switch|change|adjust|control))/i,
+          /^(Turn|Set|Toggle|Switch|Change|Adjust|Control|This message (turns?|sets?|toggles?|switches|changes|adjusts?|controls?))/i,
           'Description should start with an action verb or describe the action clearly'
         )
 
