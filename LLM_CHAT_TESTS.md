@@ -109,7 +109,7 @@ LLM_API_KEY=your-key LLM_PROVIDER=openai ./scripts/runBrowserTestsWithLLM.sh
 ### LLM Configuration
 
 The server uses the following LLM settings:
-- **Model:** `gpt-5-mini` (maps to `gpt-4o-mini`)
+- **Model:** `gpt-5-mini`
 - **Max Tokens:** 1000 completion tokens
 - **Timeout:** 30 seconds
 - **Retries:** 2 (with exponential backoff)
