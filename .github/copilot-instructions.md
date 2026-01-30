@@ -14,6 +14,14 @@
 - `yarn test:app` - Frontend tests only
 - `yarn test:backend` - Backend tests only
 
+**LLM integration tests:**
+- Requires API key (OpenAI or Gemini)
+- **Setup**: Run `./scripts/setup-llm-env.sh` to create `.env.llm-tests` from injected secrets
+- **Usage**: `source .env.llm-tests && ./scripts/run-llm-tests.sh`
+- **Note**: The `.env.llm-tests` file must be sourced to get the LLM access token before running tests
+- Tests make real API calls and cost ~$0.01-$0.05 per run
+- See `app/src/services/spec/README.md` for details
+
 **Integration tests:**
 - `yarn test:ui` - Browser tests (requires `yarn build` first)
 - `yarn test:demo-video` - UI recording (requires Xvfb, mosquitto, tmux, ffmpeg)
