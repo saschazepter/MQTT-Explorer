@@ -400,4 +400,100 @@ describe('MQTT Explorer UI Tests', function () {
       await page.screenshot({ path: 'test-screenshot-save-message.png' })
     })
   })
+
+  describe('AI Assistant Chat', () => {
+    // Skip tests if no LLM API key is available
+    const hasLLMApiKey = !!(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.LLM_API_KEY)
+    
+    before(function() {
+      if (!hasLLMApiKey) {
+        console.log('Skipping AI Assistant tests: No LLM API key found')
+        console.log('Set OPENAI_API_KEY, GEMINI_API_KEY, or LLM_API_KEY to run these tests')
+        this.skip()
+      }
+    })
+
+    it('should expand AI Assistant panel when clicked', async function() {
+      this.timeout(30000) // Increase timeout for LLM tests
+      
+      // Given: A topic is selected (from previous tests)
+      await expandTopic('livingroom/lamp', page)
+      await sleep(1000)
+
+      // When: AI Assistant header is clicked
+      const aiAssistant = page.getByTestId('ai-assistant')
+      await aiAssistant.waitFor({ state: 'visible', timeout: 5000 })
+      
+      const header = page.getByTestId('ai-assistant-header')
+      await header.click()
+      await sleep(500)
+
+      // Then: AI Assistant panel should be expanded
+      const messagesContainer = page.getByTestId('ai-assistant-messages')
+      await messagesContainer.waitFor({ state: 'visible', timeout: 5000 })
+      expect(await messagesContainer.isVisible()).to.be.true
+
+      await page.screenshot({ path: 'test-screenshot-ai-assistant-expanded.png' })
+    })
+
+    it('should send a message and receive a response from LLM', async function() {
+      this.timeout(60000) // LLM API calls can take time
+      
+      // Given: AI Assistant is expanded (from previous test)
+      const input = page.locator('[data-testid="ai-assistant-input"]')
+      await input.waitFor({ state: 'visible', timeout: 5000 })
+      
+      // When: User types a message and sends it
+      const testMessage = 'What is this device?'
+      await input.fill(testMessage)
+      await sleep(500)
+      
+      const sendButton = page.getByTestId('ai-assistant-send')
+      await sendButton.click()
+      
+      // Then: User message should appear
+      const userMessage = page.getByTestId('ai-message-user').first()
+      await userMessage.waitFor({ state: 'visible', timeout: 5000 })
+      expect(await userMessage.isVisible()).to.be.true
+      
+      // And: Assistant response should appear (wait up to 30s for LLM response)
+      const assistantMessage = page.getByTestId('ai-message-assistant').first()
+      await assistantMessage.waitFor({ state: 'visible', timeout: 45000 })
+      expect(await assistantMessage.isVisible()).to.be.true
+      
+      // Verify the assistant message has content
+      const messageText = await assistantMessage.textContent()
+      expect(messageText).to.not.be.empty
+      expect(messageText?.length || 0).to.be.greaterThan(10)
+      
+      console.log('AI Assistant response received (length: ' + (messageText?.length || 0) + ' chars)')
+      
+      await page.screenshot({ path: 'test-screenshot-ai-assistant-response.png' })
+    })
+
+    it('should clear chat history when clear button is clicked', async function() {
+      this.timeout(15000)
+      
+      // Given: Chat has messages (from previous test)
+      const messagesContainer = page.getByTestId('ai-assistant-messages')
+      await messagesContainer.waitFor({ state: 'visible', timeout: 5000 })
+      
+      // Verify we have messages
+      const messagesBefore = await page.getByTestId('ai-message-user').count()
+      expect(messagesBefore).to.be.greaterThan(0)
+      
+      // When: Clear button is clicked (button appears when there are messages)
+      // The clear button has ClearIcon but no explicit data-testid, we can find it by the icon
+      const clearButton = page.locator('button').filter({ has: page.locator('svg[data-testid="ClearIcon"]') })
+      await clearButton.waitFor({ state: 'visible', timeout: 5000 })
+      await clearButton.click()
+      await sleep(500)
+      
+      // Then: Messages should be cleared
+      const messagesAfter = await page.getByTestId('ai-message-user').count()
+      expect(messagesAfter).to.equal(0)
+      
+      await page.screenshot({ path: 'test-screenshot-ai-assistant-cleared.png' })
+    })
+  })
 })

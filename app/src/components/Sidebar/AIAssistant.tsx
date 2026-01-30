@@ -213,10 +213,15 @@ function AIAssistant(props: Props) {
   }
 
   return (
-    <Box className={classes.root}>
+    <Box className={classes.root} data-testid="ai-assistant">
       {/* Header */}
       <Box className={classes.header}>
-        <Box className={classes.headerLeft} onClick={() => setExpanded(!expanded)} style={{ flex: 1, cursor: 'pointer' }}>
+        <Box 
+          className={classes.headerLeft} 
+          onClick={() => setExpanded(!expanded)} 
+          style={{ flex: 1, cursor: 'pointer' }}
+          data-testid="ai-assistant-header"
+        >
           <SmartToyIcon className={classes.icon} />
           <Typography variant="subtitle2" className={classes.title}>
             AI Assistant
@@ -237,7 +242,11 @@ function AIAssistant(props: Props) {
               <BugReportIcon fontSize="small" style={{ color: showDebug ? '#f50057' : 'inherit' }} />
             </IconButton>
           )}
-          <Box onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <Box 
+            onClick={() => setExpanded(!expanded)} 
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            data-testid="ai-assistant-toggle"
+          >
             {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
           </Box>
         </Box>
@@ -275,7 +284,7 @@ function AIAssistant(props: Props) {
           )}
 
           {/* Messages */}
-          <Box className={classes.messages}>
+          <Box className={classes.messages} data-testid="ai-assistant-messages">
             {messages.length === 0 && !error && (
               <Box className={classes.emptyState}>
                 <SmartToyIcon className={classes.emptyIcon} />
@@ -287,7 +296,10 @@ function AIAssistant(props: Props) {
 
             {messages.map((msg, idx) => (
               <Box key={idx}>
-                <Box className={msg.role === 'user' ? classes.userMessage : classes.assistantMessage}>
+                <Box 
+                  className={msg.role === 'user' ? classes.userMessage : classes.assistantMessage}
+                  data-testid={`ai-message-${msg.role}`}
+                >
                   <Typography variant="body2" className={classes.messageText}>
                     {msg.content}
                   </Typography>
@@ -456,12 +468,14 @@ function AIAssistant(props: Props) {
               className={classes.input}
               multiline
               maxRows={3}
+              inputProps={{ 'data-testid': 'ai-assistant-input' }}
             />
             <IconButton
               color="primary"
               onClick={() => handleSendMessage()}
               disabled={!inputValue.trim() || loading}
               className={classes.sendButton}
+              data-testid="ai-assistant-send"
             >
               <SendIcon />
             </IconButton>
