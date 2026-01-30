@@ -1,12 +1,13 @@
 import { expect } from 'chai'
 import 'mocha'
 import { MessageProposal, QuestionProposal } from '../llmService'
-import axios from 'axios'
+import { LLMApiClient, createLLMClientFromEnv } from '../llmApiClient'
 
 /**
  * Live LLM Integration Tests
  *
  * These tests make actual calls to the LLM API to validate proposal quality.
+ * They now use the frontend LLM client logic without requiring the browser/RPC infrastructure.
  *
  * Requirements:
  * - OPENAI_API_KEY, GEMINI_API_KEY, or LLM_API_KEY environment variable must be set
@@ -25,23 +26,16 @@ import axios from 'axios'
 const shouldRunLLMTests = process.env.RUN_LLM_TESTS === 'true'
 const hasApiKey = !!process.env.OPENAI_API_KEY || !!process.env.GEMINI_API_KEY || !!process.env.LLM_API_KEY
 
-// Determine which provider to use
-const getProvider = (): 'openai' | 'gemini' | null => {
-  if (process.env.OPENAI_API_KEY) return 'openai'
-  if (process.env.GEMINI_API_KEY) return 'gemini'
-  if (process.env.LLM_API_KEY && process.env.LLM_PROVIDER) {
-    return process.env.LLM_PROVIDER as 'openai' | 'gemini'
-  }
-  return null
-}
-
-const provider = getProvider()
-const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.LLM_API_KEY
+let llmClient: LLMApiClient | null = null
 
 /**
- * Helper function to call LLM API directly for testing
+ * Helper function to call LLM API using the frontend client
  */
 async function callLLM(userMessage: string, context?: string): Promise<string> {
+  if (!llmClient) {
+    llmClient = createLLMClientFromEnv()
+  }
+
   const systemMessage = `You are an expert AI assistant specializing in MQTT (Message Queuing Telemetry Transport) protocol and home/industrial automation systems. When you detect controllable devices, propose MQTT messages using this format:
 
 \`\`\`proposal
@@ -57,65 +51,13 @@ You can include multiple proposals if there are multiple relevant actions.`
 
   const messageContent = context ? `Context:\n${context}\n\nUser Question: ${userMessage}` : userMessage
 
-  try {
-    if (provider === 'openai') {
-      const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: 'gpt-5-mini',
-          messages: [
-            { role: 'system', content: systemMessage },
-            { role: 'user', content: messageContent },
-          ],
-          max_completion_tokens: 1000,
-          reasoning_effort: "minimal",
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          timeout: 30000,
-        }
-      )
-      return response.data.choices[0].message.content
-    } else if (provider === 'gemini') {
-      // Gemini API implementation with API key in header
-      // Note: Gemini REST API requires API key in query param as per official docs
-      // See: https://ai.google.dev/gemini-api/docs/get-started/rest
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
-        {
-          contents: [
-            {
-              parts: [
-                { text: `${systemMessage}\n\n${messageContent}` },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1000,
-          },
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 45000, // Gemini can be slower, allow more time
-        }
-      )
-      return response.data.candidates[0].content.parts[0].text
-    } else {
-      throw new Error('No valid LLM provider configured')
-    }
-  } catch (error: any) {
-    // Sanitize error logging to avoid exposing sensitive data
-    const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error'
-    const statusCode = error.response?.status
-    console.error('LLM API call failed:', { statusCode, message: errorMessage })
-    throw new Error(`LLM API call failed: ${errorMessage}`)
-  }
+  const messages = [
+    { role: 'system' as const, content: systemMessage },
+    { role: 'user' as const, content: messageContent },
+  ]
+
+  const response = await llmClient.chat(messages)
+  return response.content
 }
 
 /**
@@ -170,11 +112,7 @@ describe('LLM Integration Tests (Live API)', function () {
       console.warn('Set OPENAI_API_KEY, GEMINI_API_KEY, or LLM_API_KEY to run these tests')
       this.skip()
     }
-    if (!provider) {
-      console.warn('Skipping LLM integration tests: Could not determine provider')
-      this.skip()
-    }
-    console.log(`Running LLM integration tests with provider: ${provider}`)
+    console.log('Running LLM integration tests using frontend LLM client logic')
   })
 
   describe('Home Automation System Detection', () => {
