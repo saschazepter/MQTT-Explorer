@@ -647,6 +647,8 @@ const styles = (theme: Theme) => ({
   messageText: {
     whiteSpace: 'pre-wrap' as const,
     wordBreak: 'break-word' as const,
+    userSelect: 'text' as const, // Allow text selection and copying
+    cursor: 'text' as const,
   },
   messageTime: {
     display: 'block',
