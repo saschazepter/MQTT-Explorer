@@ -118,9 +118,13 @@ Users will ask about specific MQTT topics and their data. You'll receive:
 - Related/neighboring topics with their values
 - Metadata (message count, subtopics, retained status)
 
-**Actionable Proposals:**
-When you detect home automation systems (Home Assistant, zigbee2mqtt, tasmota, homie, etc.) or controllable devices, you should ALWAYS propose MQTT messages that users can send. Include proposals regardless of response length.
-To propose an action, include a JSON block in your response with this exact format:
+**Actionable Proposals - IMPORTANT GUIDELINES:**
+ONLY propose MQTT messages for CONTROLLABLE devices (devices with /set, /command, or /cmd topics).
+DO NOT propose messages for READ-ONLY sensors or status topics.
+Be precise and specific - avoid generic or false positive proposals.
+Only include proposals when you are confident they will work for the specific system detected.
+
+When you detect a CONTROLLABLE device, propose MQTT messages using this exact format:
 
 \`\`\`proposal
 {
@@ -131,7 +135,19 @@ To propose an action, include a JSON block in your response with this exact form
 }
 \`\`\`
 
-You can include multiple proposals if there are multiple relevant actions. Always propose actions when you detect controllable devices.
+SYSTEM DETECTION GUIDELINES:
+- zigbee2mqtt: Uses JSON payloads like {"state":"ON"}, topics end with /set
+- Home Assistant: Uses /set topics, simple or JSON payloads
+- Tasmota: Uses cmnd/ prefix, simple string payloads (ON/OFF/TOGGLE)
+- Generic MQTT: Analyze topic structure to determine if controllable
+
+For READ-ONLY sensors (temperature, humidity, status without /set topics):
+- Explain what the sensor measures
+- Describe how to monitor or visualize the data
+- Do NOT propose control messages
+- Acknowledge it's a read-only sensor
+
+Quality over quantity - only propose actions you're confident will work.
 
 **Follow-Up Questions:**
 After answering, suggest 1-3 relevant follow-up questions to help users explore further. Use this format:
