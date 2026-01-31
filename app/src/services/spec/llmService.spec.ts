@@ -783,6 +783,32 @@ Both actions and questions provided.`
       })
     })
 
+    describe('findRootNode', () => {
+      it('should find root node from deeply nested node', () => {
+        const root = createMockTopicTree()
+        // Get the lamp node (deeply nested)
+        const lamp = (service as any).findTopicNode('home/livingroom/lamp', root)
+        expect(lamp).to.not.be.null
+        
+        // Find root from lamp node
+        const foundRoot = (service as any).findRootNode(lamp)
+        expect(foundRoot).to.not.be.null
+        expect(foundRoot?.path()).to.equal('home')
+        expect(foundRoot).to.equal(root)
+      })
+
+      it('should return null for undefined node', () => {
+        const foundRoot = (service as any).findRootNode(undefined)
+        expect(foundRoot).to.be.null
+      })
+
+      it('should return node itself if it has no parent (is root)', () => {
+        const root = createMockTopicTree()
+        const foundRoot = (service as any).findRootNode(root)
+        expect(foundRoot).to.equal(root)
+      })
+    })
+
     describe('queryTopicHistory', () => {
       it('should query topic history with limit', () => {
         const root = createMockTopicTree()

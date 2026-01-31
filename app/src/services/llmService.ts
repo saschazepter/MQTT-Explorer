@@ -466,6 +466,21 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
   /**
    * Find a topic node by path
    */
+  /**
+   * Find the root node by traversing up the parent chain
+   */
+  private findRootNode(node?: TopicNode): TopicNode | null {
+    if (!node) {
+      return null
+    }
+
+    let current = node
+    while (current.parent) {
+      current = current.parent
+    }
+    return current
+  }
+
   private findTopicNode(topicPath: string, currentNode?: TopicNode): TopicNode | null {
     if (!currentNode) {
       return null
@@ -774,6 +789,14 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
 
         console.log('LLM Service: Executing', toolCalls.length, 'tool calls')
 
+        // Find the root node for tool execution
+        // Tools need to search from root to find any topic, not just from currentNode
+        const rootNode = this.findRootNode(currentNode)
+        console.log('LLM Service: Root node found:', !!rootNode)
+        if (rootNode) {
+          console.log('LLM Service: Root node path:', rootNode.path?.() || 'unknown')
+        }
+
         // Add assistant message with tool calls to history
         // OpenAI requires the tool_calls property to be included
         this.conversationHistory.push({
@@ -791,7 +814,7 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
               name: tc.function?.name || tc.name,
               arguments: tc.function?.arguments || tc.arguments,
             }
-            return this.executeTool(toolCall, currentNode)
+            return this.executeTool(toolCall, rootNode || undefined)
           })
         )
 
