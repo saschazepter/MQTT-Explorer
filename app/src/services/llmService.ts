@@ -151,6 +151,8 @@ You have access to powerful tools to query MQTT topic information:
 - Use query_topic_history when you need to see how values changed over time
 - Use get_topic to get details about a specific topic you haven't seen yet
 - Use list_children to explore what topics exist under a parent path (then query specific children)
+  - To list root-level topics, use list_children("") with an empty string
+  - To list children of a specific topic, use list_children("path/to/topic")
 - Use list_parents to understand the full path hierarchy of a topic
 
 Use these tools **PROACTIVELY** to gather information **BEFORE making suggestions or answering questions**.
@@ -686,13 +688,27 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
    * List child topics (200 token limit)
    */
   private listChildren(topicPath: string, limit: number, rootNode?: TopicNode): string {
-    const node = rootNode ? this.findTopicNode(topicPath, rootNode) : null
+    console.log('listChildren called with topicPath:', topicPath, 'limit:', limit, 'hasRootNode:', !!rootNode)
+    
+    // Special handling for root level (empty string or root)
+    let node: TopicNode | null = null
+    if (!topicPath || topicPath === '' || topicPath === '/' || topicPath.toLowerCase() === 'root') {
+      console.log('Listing children at root level')
+      node = rootNode || null
+    } else {
+      node = rootNode ? this.findTopicNode(topicPath, rootNode) : null
+    }
     
     if (!node) {
+      console.log('Topic node not found for path:', topicPath)
       return `Topic not found: ${topicPath}`
     }
 
+    console.log('Node found, checking edges. Has edgeCollection:', !!node.edgeCollection)
+    console.log('Edge count:', node.edgeCollection?.edges?.length || 0)
+
     if (!node.edgeCollection?.edges || node.edgeCollection.edges.length === 0) {
+      console.log('No edges found in edgeCollection')
       return `No child topics found for: ${topicPath}`
     }
 
@@ -707,6 +723,12 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         const suffix = childCount > 0 ? ` (${childCount} subtopics)` : ''
         children.push(`${hasValue} ${childPath}${suffix}`)
       }
+    }
+
+    console.log('Found', children.length, 'children')
+
+    if (children.length === 0) {
+      return `No child topics found for: ${topicPath}`
     }
 
     const result = `Child topics (${children.length}):\n${children.join('\n')}`
