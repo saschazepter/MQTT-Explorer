@@ -972,4 +972,164 @@ Both actions and questions provided.`
       })
     })
   })
+
+  describe('parseResponse', () => {
+    let service: LLMService
+
+    beforeEach(() => {
+      service = new LLMService()
+    })
+
+    it('should parse question proposals with backticks format', () => {
+      const response = `Here is some text.
+
+\`\`\`question-proposal
+{
+  "question": "What is the temperature?",
+  "category": "analysis"
+}
+\`\`\`
+
+\`\`\`question-proposal
+{
+  "question": "How do I turn it off?",
+  "category": "control"
+}
+\`\`\`
+
+More text here.`
+
+      const result = service.parseResponse(response)
+
+      expect(result.questions).to.have.length(2)
+      expect(result.questions[0].question).to.equal('What is the temperature?')
+      expect(result.questions[0].category).to.equal('analysis')
+      expect(result.questions[1].question).to.equal('How do I turn it off?')
+      expect(result.questions[1].category).to.equal('control')
+      expect(result.text).to.include('Here is some text')
+      expect(result.text).to.include('More text here')
+      expect(result.text).not.to.include('```question-proposal')
+    })
+
+    it('should parse question proposals without backticks (bare JSON)', () => {
+      const response = `Here is some analysis.
+
+{"question": "What devices are connected?", "category": "analysis"}
+
+{"question": "Can I automate this?", "category": "optimization"}
+
+That's all.`
+
+      const result = service.parseResponse(response)
+
+      expect(result.questions).to.have.length(2)
+      expect(result.questions[0].question).to.equal('What devices are connected?')
+      expect(result.questions[0].category).to.equal('analysis')
+      expect(result.questions[1].question).to.equal('Can I automate this?')
+      expect(result.questions[1].category).to.equal('optimization')
+      expect(result.text).to.include('Here is some analysis')
+      expect(result.text).to.include("That's all")
+      expect(result.text).not.to.include('{"question"')
+    })
+
+    it('should parse question proposals without category', () => {
+      const response = `Some text.
+
+{"question": "What is this?"}
+
+End.`
+
+      const result = service.parseResponse(response)
+
+      expect(result.questions).to.have.length(1)
+      expect(result.questions[0].question).to.equal('What is this?')
+      expect(result.questions[0].category).to.be.undefined
+    })
+
+    it('should handle mixed format (backticks and bare JSON)', () => {
+      const response = `Text here.
+
+\`\`\`question-proposal
+{
+  "question": "First question?",
+  "category": "analysis"
+}
+\`\`\`
+
+{"question": "Second question?", "category": "control"}
+
+Done.`
+
+      const result = service.parseResponse(response)
+
+      expect(result.questions).to.have.length(2)
+      expect(result.questions[0].question).to.equal('First question?')
+      expect(result.questions[1].question).to.equal('Second question?')
+    })
+
+    it('should parse message proposals with backticks', () => {
+      const response = `You can turn off the light.
+
+\`\`\`proposal
+{
+  "topic": "home/light/set",
+  "payload": "OFF",
+  "qos": 0,
+  "description": "Turn off the light"
+}
+\`\`\``
+
+      const result = service.parseResponse(response)
+
+      expect(result.proposals).to.have.length(1)
+      expect(result.proposals[0].topic).to.equal('home/light/set')
+      expect(result.proposals[0].payload).to.equal('OFF')
+      expect(result.proposals[0].description).to.equal('Turn off the light')
+      expect(result.text).not.to.include('```proposal')
+    })
+
+    it('should handle response with no proposals or questions', () => {
+      const response = 'This is a simple response with no proposals.'
+
+      const result = service.parseResponse(response)
+
+      expect(result.questions).to.have.length(0)
+      expect(result.proposals).to.have.length(0)
+      expect(result.text).to.equal('This is a simple response with no proposals.')
+    })
+
+    it('should handle malformed JSON gracefully', () => {
+      const response = `Some text.
+
+{"question": "Valid question?", "category": "analysis"}
+
+{invalid json here}
+
+{"question": "Another valid?"}
+
+Done.`
+
+      const result = service.parseResponse(response)
+
+      // Should parse the valid questions and skip the invalid one
+      expect(result.questions).to.have.length(2)
+      expect(result.questions[0].question).to.equal('Valid question?')
+      expect(result.questions[1].question).to.equal('Another valid?')
+    })
+
+    it('should remove bare JSON from display text', () => {
+      const response = `Here is the answer: The device is working fine.
+
+{"question": "Is it secure?", "category": "troubleshooting"}
+
+You can check the logs for more details.`
+
+      const result = service.parseResponse(response)
+
+      expect(result.text).to.include('The device is working fine')
+      expect(result.text).to.include('You can check the logs')
+      expect(result.text).not.to.include('{"question"')
+      expect(result.text).not.to.include('"Is it secure?"')
+    })
+  })
 })

@@ -873,6 +873,49 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       }
     }
 
+    // FALLBACK: Try to find bare JSON question proposals without backticks
+    // This handles cases where LLM doesn't follow the ``` format
+    // Look for patterns like: {"question": "...", "category": "..."}
+    const bareQuestionRegex = /\{[\s\n]*"question"[\s\n]*:[\s\n]*"([^"]+)"[\s\n]*(?:,[\s\n]*"category"[\s\n]*:[\s\n]*"([^"]+)"[\s\n]*)?\}/g
+    while ((match = bareQuestionRegex.exec(response)) !== null) {
+      const fullMatch = match[0]
+      const matchIndex = match.index
+      
+      // Check if this match is inside a ```question-proposal block
+      // Find the nearest ``` before this match
+      const textBefore = response.substring(0, matchIndex)
+      const lastBacktickIndex = textBefore.lastIndexOf('```question-proposal')
+      
+      let isInsideBacktickBlock = false
+      if (lastBacktickIndex !== -1) {
+        // Check if there's a closing ``` after the opening and before our match
+        const textBetween = response.substring(lastBacktickIndex, matchIndex)
+        const closingBackticks = textBetween.substring(20).indexOf('```') // Skip the opening ```question-proposal
+        if (closingBackticks === -1) {
+          // No closing ``` found, so we're inside the block
+          isInsideBacktickBlock = true
+        }
+      }
+      
+      // Only parse if not inside a backtick block (avoid duplicates)
+      if (!isInsideBacktickBlock) {
+        try {
+          // Validate the JSON is properly formed
+          const parsedJson = JSON.parse(fullMatch)
+          if (parsedJson.question) {
+            questions.push({
+              question: parsedJson.question,
+              category: parsedJson.category,
+            })
+            // Remove this bare JSON from display text
+            cleanText = cleanText.replace(fullMatch, '').trim()
+          }
+        } catch (e) {
+          // Not valid JSON, skip
+        }
+      }
+    }
+
     // Remove proposal and question blocks from display text
     cleanText = cleanText.replace(/```proposal\s*\n[\s\S]*?\n```/g, '').trim()
     cleanText = cleanText.replace(/```question-proposal\s*\n[\s\S]*?\n```/g, '').trim()
