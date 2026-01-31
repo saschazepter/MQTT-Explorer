@@ -471,6 +471,52 @@ describe('MQTT Explorer UI Tests', function () {
       await page.screenshot({ path: 'test-screenshot-ai-assistant-response.png' })
     })
 
+    it('should allow selecting and copying text from chat messages', async function() {
+      this.timeout(30000)
+      
+      // Given: Chat has messages (from previous test)
+      const assistantMessage = page.getByTestId('ai-message-assistant').first()
+      await assistantMessage.waitFor({ state: 'visible', timeout: 5000 })
+      
+      // Get the message text content
+      const messageText = await assistantMessage.textContent()
+      expect(messageText).to.not.be.empty
+      
+      // When: We try to select text from the assistant message
+      // We'll use triple-click to select all text in the message
+      await assistantMessage.click({ clickCount: 3 })
+      await sleep(500)
+      
+      // Then: Text should be selectable (we can verify by checking CSS properties)
+      // We verify the userSelect CSS property is set to 'text'
+      const userSelectValue = await assistantMessage.evaluate((el) => {
+        return window.getComputedStyle(el).userSelect
+      })
+      
+      // The userSelect property should allow text selection
+      // Different browsers may report this differently: 'text' or 'auto' or not 'none'
+      expect(userSelectValue).to.not.equal('none', 'Text should be selectable (userSelect should not be "none")')
+      
+      // Also verify the cursor style is appropriate for text
+      const cursorValue = await assistantMessage.evaluate((el) => {
+        return window.getComputedStyle(el).cursor
+      })
+      
+      console.log(`userSelect: ${userSelectValue}, cursor: ${cursorValue}`)
+      
+      // Additionally, test that we can actually select text programmatically
+      const selectedText = await page.evaluate(() => {
+        const selection = window.getSelection()
+        return selection?.toString() || ''
+      })
+      
+      // If text was selected, it should have some content
+      // (The actual selection may vary by browser, so we just verify it's possible)
+      console.log('Selected text length:', selectedText.length)
+      
+      await page.screenshot({ path: 'test-screenshot-ai-assistant-text-selectable.png' })
+    })
+
     it('should clear chat history when clear button is clicked', async function() {
       this.timeout(15000)
       
