@@ -28,6 +28,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ClearIcon from '@mui/icons-material/Clear'
 import PublishIcon from '@mui/icons-material/Publish'
 import BugReportIcon from '@mui/icons-material/BugReport'
+import BuildIcon from '@mui/icons-material/Build'
 import { Base64Message } from '../../../../backend/src/Model/Base64Message'
 import { getLLMService, LLMMessage, MessageProposal, QuestionProposal } from '../../services/llmService'
 import { makePublishEvent, rendererEvents } from '../../eventBus'
@@ -403,7 +404,7 @@ function AIAssistant(props: Props) {
                 {/* Render tool calls if any */}
                 {msg.toolCalls && msg.toolCalls.length > 0 && (
                   <Box className={classes.toolCallsContainer}>
-                    <Alert severity="info" icon={<BugReportIcon fontSize="small" />} className={classes.toolCallAlert}>
+                    <Alert severity="info" icon={<BuildIcon fontSize="small" />} className={classes.toolCallAlert}>
                       <Typography variant="caption" fontWeight="bold" gutterBottom>
                         🔧 Tool Calls ({msg.toolCalls.length})
                       </Typography>
