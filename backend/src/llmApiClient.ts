@@ -8,8 +8,32 @@ import axios from 'axios'
 export type LLMProvider = 'openai' | 'gemini'
 
 export interface LLMMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
+  tool_call_id?: string
+  name?: string
+}
+
+export interface LLMToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+export interface LLMTool {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: {
+      type: 'object'
+      properties: Record<string, any>
+      required?: string[]
+    }
+  }
 }
 
 export interface LLMApiConfig {
@@ -17,12 +41,14 @@ export interface LLMApiConfig {
   apiKey: string
   model?: string
   maxTokens?: number
+  tools?: LLMTool[]
 }
 
 export interface LLMApiResponse {
   content: string
   provider: string
   model: string
+  toolCalls?: LLMToolCall[]
   usage?: {
     promptTokens?: number
     completionTokens?: number
@@ -39,12 +65,14 @@ export class LLMApiClient {
   private apiKey: string
   private model: string
   private maxTokens: number
+  private tools?: LLMTool[]
 
   constructor(config: LLMApiConfig) {
     this.provider = config.provider || this.detectProvider(config.apiKey)
     this.apiKey = config.apiKey
     this.model = config.model || this.getDefaultModel(this.provider)
     this.maxTokens = config.maxTokens || 1000
+    this.tools = config.tools
   }
 
   private detectProvider(apiKey: string): LLMProvider {
@@ -71,17 +99,31 @@ export class LLMApiClient {
 
   private async chatOpenAI(messages: LLMMessage[]): Promise<LLMApiResponse> {
     try {
-      const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: this.model,
-          messages: messages.map(m => ({
+      const requestBody: any = {
+        model: this.model,
+        messages: messages.map(m => {
+          const msg: any = {
             role: m.role,
             content: m.content,
-          })),
-          max_completion_tokens: this.maxTokens,
-          reasoning_effort: 'minimal',
-        },
+          }
+          if (m.role === 'tool') {
+            msg.tool_call_id = m.tool_call_id
+            msg.name = m.name
+          }
+          return msg
+        }),
+        max_completion_tokens: this.maxTokens,
+        reasoning_effort: 'minimal',
+      }
+
+      // Add tools if provided
+      if (this.tools && this.tools.length > 0) {
+        requestBody.tools = this.tools
+      }
+
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        requestBody,
         {
           headers: {
             'Content-Type': 'application/json',
@@ -96,7 +138,7 @@ export class LLMApiClient {
         throw new Error('No response from OpenAI')
       }
 
-      return {
+      const result: LLMApiResponse = {
         content: choice.message.content || '',
         provider: 'openai',
         model: response.data.model,
@@ -106,6 +148,20 @@ export class LLMApiClient {
           totalTokens: response.data.usage?.total_tokens,
         },
       }
+
+      // Check if LLM wants to call tools
+      if (choice.message.tool_calls) {
+        result.toolCalls = choice.message.tool_calls.map((tc: any) => ({
+          id: tc.id,
+          type: 'function',
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          },
+        }))
+      }
+
+      return result
     } catch (error: any) {
       const errorMessage = error.response?.data?.error?.message || error.message || 'Unknown error'
       throw new Error(`OpenAI API error: ${errorMessage}`)
