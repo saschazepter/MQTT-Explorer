@@ -460,7 +460,7 @@ Related Topics (2):
   zigbee2mqtt/bedroom_light/availability: online
 `
 
-      console.log('\n[TEST] Testing question generation...')
+      console.log('[TEST] Testing question generation...')
       const response = await callLLM('What is this device?', topicContext)
       console.log('[TEST] LLM Response length:', response.length)
 
@@ -519,6 +519,177 @@ Messages: 1000
         'Response should discuss sensor data')
       
       console.log('[TEST] Sensor analysis response preview:', response.substring(0, 200))
+    })
+  })
+
+  describe('Popular Home Automation Systems - Pattern Inference', () => {
+    it('should infer zigbee2mqtt and turn on a lamp correctly', async () => {
+      const topicContext = `
+Topic: zigbee2mqtt/bedroom/lamp
+Value: {"state": "OFF", "brightness": 128, "color_temp": 370}
+
+Related Topics (2):
+  zigbee2mqtt/bedroom/lamp/set: {}
+  zigbee2mqtt/bedroom/lamp/availability: online
+`
+
+      console.log('\n[TEST] Testing zigbee2mqtt lamp control...')
+      const response = await callLLM('Turn on this lamp', topicContext)
+      console.log('[TEST] Response:', response.substring(0, 300))
+
+      const proposals = parseProposals(response)
+      expect(proposals.length).to.be.greaterThan(0, 'Should propose at least one action')
+
+      const turnOnProposal = proposals.find(p => 
+        p.topic.includes('/set') && 
+        (p.payload.toLowerCase().includes('"state"') || p.payload.toLowerCase().includes('state'))
+      )
+
+      expect(turnOnProposal).to.exist
+      if (turnOnProposal) {
+        // Should use JSON format (inferred from current value)
+        expect(() => JSON.parse(turnOnProposal.payload)).to.not.throw('Should use JSON payload')
+        const payload = JSON.parse(turnOnProposal.payload)
+        expect(payload).to.have.property('state')
+        expect(payload.state.toUpperCase()).to.equal('ON')
+        console.log('[TEST] ✓ Correctly inferred zigbee2mqtt JSON format:', turnOnProposal)
+      }
+    })
+
+    it('should infer Home Assistant and turn on a light correctly', async () => {
+      const topicContext = `
+Topic: homeassistant/light/living_room/state
+Value: OFF
+
+Related Topics (1):
+  homeassistant/light/living_room/set: 
+`
+
+      console.log('\n[TEST] Testing Home Assistant light control...')
+      const response = await callLLM('Turn on the living room light', topicContext)
+      console.log('[TEST] Response:', response.substring(0, 300))
+
+      const proposals = parseProposals(response)
+      expect(proposals.length).to.be.greaterThan(0, 'Should propose at least one action')
+
+      const turnOnProposal = proposals[0]
+      expect(turnOnProposal.topic).to.include('/set')
+      // Should infer simple string format from current value
+      expect(turnOnProposal.payload).to.match(/^(ON|on)$/i, 'Should use simple ON command')
+      console.log('[TEST] ✓ Correctly inferred Home Assistant simple format:', turnOnProposal)
+    })
+
+    it('should infer Tasmota and control a device correctly', async () => {
+      const topicContext = `
+Topic: stat/garage_door/POWER
+Value: OFF
+
+Related Topics (1):
+  cmnd/garage_door/POWER: 
+`
+
+      console.log('\n[TEST] Testing Tasmota device control...')
+      const response = await callLLM('Turn on this device', topicContext)
+      console.log('[TEST] Response:', response.substring(0, 300))
+
+      const proposals = parseProposals(response)
+      expect(proposals.length).to.be.greaterThan(0, 'Should propose at least one action')
+
+      const controlProposal = proposals[0]
+      expect(controlProposal.topic).to.match(/^cmnd\//, 'Should use cmnd/ prefix')
+      expect(controlProposal.payload).to.match(/^(ON|OFF|TOGGLE)$/i, 'Should use simple Tasmota command')
+      console.log('[TEST] ✓ Correctly inferred Tasmota command format:', controlProposal)
+    })
+
+    it('should correctly handle garage door opener pattern', async () => {
+      const topicContext = `
+Topic: myq/garage/main/status
+Value: closed
+
+Related Topics (2):
+  myq/garage/main/command: 
+  myq/garage/main/state: closed
+`
+
+      console.log('\n[TEST] Testing garage door opener...')
+      const response = await callLLM('Open the garage door', topicContext)
+      console.log('[TEST] Response:', response.substring(0, 300))
+
+      const proposals = parseProposals(response)
+      expect(proposals.length).to.be.greaterThan(0, 'Should propose at least one action')
+
+      const openProposal = proposals.find(p => 
+        p.topic.includes('/command') && 
+        p.payload.toLowerCase().includes('open')
+      )
+
+      expect(openProposal).to.exist
+      if (openProposal) {
+        expect(openProposal.payload.toLowerCase()).to.match(/open|up/, 'Should propose open command')
+        console.log('[TEST] ✓ Correctly proposed garage door open:', openProposal)
+      }
+    })
+
+    it('should infer smart switch control pattern', async () => {
+      const topicContext = `
+Topic: devices/switches/kitchen
+Value: {"power": "off", "energy": 0.0, "voltage": 120}
+
+Related Topics (1):
+  devices/switches/kitchen/cmd: 
+`
+
+      console.log('\n[TEST] Testing smart switch control...')
+      const response = await callLLM('Turn on this switch', topicContext)
+      console.log('[TEST] Response:', response.substring(0, 300))
+
+      const proposals = parseProposals(response)
+      expect(proposals.length).to.be.greaterThan(0, 'Should propose at least one action')
+
+      const switchProposal = proposals[0]
+      expect(switchProposal.topic).to.include('/cmd')
+      
+      // Should infer format from current value (JSON with power field)
+      const isJSON = (() => { try { JSON.parse(switchProposal.payload); return true } catch { return false } })()
+      if (isJSON) {
+        const payload = JSON.parse(switchProposal.payload)
+        expect(payload).to.have.property('power')
+        console.log('[TEST] ✓ Correctly inferred JSON format with power field:', switchProposal)
+      } else {
+        // Or simple string if LLM chose that approach
+        expect(switchProposal.payload).to.match(/on|off/i)
+        console.log('[TEST] ✓ Used simple string format:', switchProposal)
+      }
+    })
+
+    it('should infer thermostat control from temperature pattern', async () => {
+      const topicContext = `
+Topic: home/thermostat/current_temp
+Value: 20.5
+
+Related Topics (3):
+  home/thermostat/target_temp: 22
+  home/thermostat/mode: heat
+  home/thermostat/set_target: 
+`
+
+      console.log('\n[TEST] Testing thermostat control...')
+      const response = await callLLM('Set temperature to 23 degrees', topicContext)
+      console.log('[TEST] Response:', response.substring(0, 300))
+
+      const proposals = parseProposals(response)
+      expect(proposals.length).to.be.greaterThan(0, 'Should propose at least one action')
+
+      const tempProposal = proposals.find(p => 
+        p.topic.includes('set_target') || p.topic.includes('target_temp')
+      )
+
+      expect(tempProposal).to.exist
+      if (tempProposal) {
+        const payloadNum = parseFloat(tempProposal.payload)
+        expect(payloadNum).to.equal(23, 'Should propose temperature value of 23')
+        console.log('[TEST] ✓ Correctly inferred thermostat temperature setting:', tempProposal)
+      }
     })
   })
 })
