@@ -128,7 +128,8 @@ function AIAssistant(props: Props) {
         const topicContext = node ? llmService.generateTopicContext(node) : undefined
 
         // Send to LLM - now returns { response, toolCalls, debugInfo }
-        const llmResponse = await llmService.sendMessage(text, topicContext)
+        // Pass node for tool execution
+        const llmResponse = await llmService.sendMessage(text, topicContext, node)
 
         // Parse response for proposals and questions
         const parsed = llmService.parseResponse(llmResponse.response)

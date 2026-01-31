@@ -68,6 +68,13 @@ export interface QuestionProposal {
 
 export interface LLMResponse {
   response: string
+  toolCalls?: Array<{
+    id: string
+    function: {
+      name: string
+      arguments: string
+    }
+  }>
   debugInfo?: any
 }
 
@@ -455,10 +462,230 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
   }
 
   /**
+   * Find a topic node by path
+   */
+  private findTopicNode(topicPath: string, currentNode?: TopicNode): TopicNode | null {
+    if (!currentNode) {
+      return null
+    }
+
+    // If current node matches, return it
+    const currentPath = currentNode.path?.() || ''
+    if (currentPath === topicPath) {
+      return currentNode
+    }
+
+    // Search in children
+    if (currentNode.edgeCollection?.edges) {
+      for (const edge of currentNode.edgeCollection.edges) {
+        if (edge.node) {
+          const found = this.findTopicNode(topicPath, edge.node)
+          if (found) {
+            return found
+          }
+        }
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Execute a tool call and return formatted result
+   */
+  private async executeTool(
+    toolCall: { id: string; name: string; arguments: string },
+    rootNode?: TopicNode
+  ): Promise<{ tool_call_id: string; name: string; content: string }> {
+    try {
+      const args = JSON.parse(toolCall.arguments)
+      let result: string
+
+      switch (toolCall.name) {
+        case 'query_topic_history':
+          result = this.queryTopicHistory(args.topic, args.limit || 10, rootNode)
+          break
+        case 'get_topic':
+          result = this.getTopic(args.topic, rootNode)
+          break
+        case 'list_children':
+          result = this.listChildren(args.topic, args.limit || 20, rootNode)
+          break
+        case 'list_parents':
+          result = this.listParents(args.topic, rootNode)
+          break
+        default:
+          result = `Error: Unknown tool '${toolCall.name}'`
+      }
+
+      return {
+        tool_call_id: toolCall.id,
+        name: toolCall.name,
+        content: result,
+      }
+    } catch (error) {
+      return {
+        tool_call_id: toolCall.id,
+        name: toolCall.name,
+        content: `Error executing tool: ${error}`,
+      }
+    }
+  }
+
+  /**
+   * Query topic history (200 token limit)
+   */
+  private queryTopicHistory(topicPath: string, limit: number, rootNode?: TopicNode): string {
+    const node = rootNode ? this.findTopicNode(topicPath, rootNode) : null
+    
+    if (!node) {
+      return `Topic not found: ${topicPath}`
+    }
+
+    // Get message history from node
+    // Note: messageHistory is a RingBuffer with getAll() method
+    const messageHistory = (node as any).messageHistory
+    if (!messageHistory || !messageHistory.getAll) {
+      return `No message history available for topic: ${topicPath}`
+    }
+
+    const messages = messageHistory.getAll()
+    if (!messages || messages.length === 0) {
+      return `No messages in history for topic: ${topicPath}`
+    }
+
+    // Get recent messages (up to limit, max 20)
+    const recentMessages = messages.slice(-Math.min(limit, 20))
+    
+    // Format messages with timestamps
+    const formatted = recentMessages.map((msg: any) => {
+      const timestamp = msg.timestamp ? new Date(msg.timestamp).toISOString() : 'unknown'
+      const value = msg.payload ? msg.payload.toString() : 'null'
+      return `[${timestamp}] ${value}`
+    }).join('\n')
+
+    // Limit to 200 tokens (~800 characters)
+    const limited = this.truncateToTokenLimit(formatted, 200)
+    return limited.truncated ? `${limited.text}\n[TRUNCATED - showing first 200 tokens]` : limited.text
+  }
+
+  /**
+   * Get topic details (200 token limit)
+   */
+  private getTopic(topicPath: string, rootNode?: TopicNode): string {
+    const node = rootNode ? this.findTopicNode(topicPath, rootNode) : null
+    
+    if (!node) {
+      return `Topic not found: ${topicPath}`
+    }
+
+    const info: string[] = []
+    info.push(`Topic: ${topicPath}`)
+
+    // Current value
+    if (node.message?.payload) {
+      const [value] = node.message.payload.format(node.type)
+      if (value !== null && value !== undefined) {
+        const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value)
+        info.push(`Value: ${valueStr}`)
+      }
+      if (node.message.retain) {
+        info.push('Retained: true')
+      }
+    }
+
+    // Message count
+    if (node.messages) {
+      info.push(`Messages: ${node.messages}`)
+    }
+
+    // Child count
+    if (node.childTopicCount) {
+      const childCount = node.childTopicCount()
+      if (childCount > 0) {
+        info.push(`Subtopics: ${childCount}`)
+      }
+    }
+
+    const result = info.join('\n')
+    
+    // Limit to 200 tokens
+    const limited = this.truncateToTokenLimit(result, 200)
+    return limited.truncated ? `${limited.text}\n[TRUNCATED]` : limited.text
+  }
+
+  /**
+   * List child topics (200 token limit)
+   */
+  private listChildren(topicPath: string, limit: number, rootNode?: TopicNode): string {
+    const node = rootNode ? this.findTopicNode(topicPath, rootNode) : null
+    
+    if (!node) {
+      return `Topic not found: ${topicPath}`
+    }
+
+    if (!node.edgeCollection?.edges || node.edgeCollection.edges.length === 0) {
+      return `No child topics found for: ${topicPath}`
+    }
+
+    const children: string[] = []
+    const maxChildren = Math.min(limit, 50)
+    
+    for (const edge of node.edgeCollection.edges.slice(0, maxChildren)) {
+      if (edge.name && edge.node) {
+        const childPath = topicPath ? `${topicPath}/${edge.name}` : edge.name
+        const hasValue = edge.node.message?.payload ? '✓' : '○'
+        const childCount = edge.node.childTopicCount?.() || 0
+        const suffix = childCount > 0 ? ` (${childCount} subtopics)` : ''
+        children.push(`${hasValue} ${childPath}${suffix}`)
+      }
+    }
+
+    const result = `Child topics (${children.length}):\n${children.join('\n')}`
+    
+    // Limit to 200 tokens
+    const limited = this.truncateToTokenLimit(result, 200)
+    return limited.truncated ? `${limited.text}\n[TRUNCATED - showing first 200 tokens]` : limited.text
+  }
+
+  /**
+   * Get parent hierarchy (100 token limit)
+   */
+  private listParents(topicPath: string, rootNode?: TopicNode): string {
+    const node = rootNode ? this.findTopicNode(topicPath, rootNode) : null
+    
+    if (!node) {
+      return `Topic not found: ${topicPath}`
+    }
+
+    const parents: string[] = []
+    let current = node.parent
+    
+    while (current && current.path) {
+      const path = current.path()
+      if (path) {
+        parents.unshift(path)
+      }
+      current = current.parent
+    }
+
+    if (parents.length === 0) {
+      return `No parent topics for: ${topicPath} (root level topic)`
+    }
+
+    const result = `Parent hierarchy:\n${parents.map((p, i) => `${' '.repeat(i * 2)}${p}`).join('\n')}\n${' '.repeat(parents.length * 2)}${topicPath} (current)`
+    
+    // Limit to 100 tokens
+    const limited = this.truncateToTokenLimit(result, 100)
+    return limited.truncated ? `${limited.text}\n[TRUNCATED]` : limited.text
+  }
+
+  /**
    * Send a message to the LLM and get a response
    * Messages are proxied through the backend server via WebSocket for security
+   * Handles tool calls automatically
    */
-  public async sendMessage(userMessage: string, topicContext?: string): Promise<LLMResponse> {
+  public async sendMessage(userMessage: string, topicContext?: string, currentNode?: TopicNode): Promise<LLMResponse> {
     try {
       // Add topic context if provided
       let messageContent = userMessage
@@ -481,14 +708,15 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       console.log('Message content length:', messageContent.length, 'characters')
       console.log('Message preview:', messageContent.substring(0, 300) + '...')
 
-      // Call backend via RPC (WebSocket) instead of HTTP
-      const result = await backendRpc.call(RpcEvents.llmChat, {
+      // Call backend via RPC (WebSocket) - initial request
+      let result = await backendRpc.call(RpcEvents.llmChat, {
         messages: this.conversationHistory,
         topicContext,
       })
 
       console.log('LLM Service: Received result from backend:', result)
       console.log('LLM Service: Has response:', !!result?.response)
+      console.log('LLM Service: Has toolCalls:', !!result?.toolCalls)
       console.log('LLM Service: Has debugInfo:', !!result?.debugInfo)
 
       if (!result || !result.response) {
@@ -496,13 +724,58 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         throw new Error('No response from AI assistant')
       }
 
-      const assistantMessage = result.response
-      const debugInfo = result.debugInfo
+      let assistantMessage = result.response
+      let debugInfo = result.debugInfo
+      let toolCalls = result.toolCalls
+
+      // If LLM requested tool calls, execute them and get final response
+      if (toolCalls && toolCalls.length > 0 && currentNode) {
+        console.log('LLM Service: Executing', toolCalls.length, 'tool calls')
+
+        // Add assistant message with tool calls to history
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: assistantMessage,
+        })
+
+        // Execute all tool calls
+        const toolResults = await Promise.all(
+          toolCalls.map((tc: any) => this.executeTool(tc, currentNode))
+        )
+
+        console.log('LLM Service: Tool results:', toolResults)
+
+        // Add tool results to history as tool messages
+        for (const toolResult of toolResults) {
+          this.conversationHistory.push({
+            role: 'tool' as any,
+            content: toolResult.content,
+          })
+        }
+
+        // Call backend again with tool results
+        result = await backendRpc.call(RpcEvents.llmChat, {
+          messages: this.conversationHistory,
+          topicContext,
+          toolResults,
+        })
+
+        console.log('LLM Service: Received final result after tools:', result)
+
+        if (!result || !result.response) {
+          console.error('LLM Service: Invalid final result from backend:', result)
+          throw new Error('No final response from AI assistant')
+        }
+
+        assistantMessage = result.response
+        debugInfo = result.debugInfo
+        toolCalls = result.toolCalls // Might have more tool calls (unlikely)
+      }
       
       console.log('LLM Service: Assistant message length:', assistantMessage.length)
       console.log('LLM Service: Debug info:', debugInfo)
 
-      // Add assistant response to history
+      // Add final assistant response to history
       this.conversationHistory.push({
         role: 'assistant',
         content: assistantMessage,
@@ -518,6 +791,7 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
 
       return {
         response: assistantMessage,
+        toolCalls,
         debugInfo,
       }
     } catch (error: unknown) {
