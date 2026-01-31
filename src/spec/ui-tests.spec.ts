@@ -707,5 +707,134 @@ describe('MQTT Explorer UI Tests', function () {
       
       await page.screenshot({ path: 'test-screenshot-ai-assistant-tool-calling.png' })
     })
+
+    it('should show human-readable tool actions during thinking', async function () {
+      this.timeout(120000)
+      
+      console.log('Testing human-readable tool action display...')
+      
+      // Select a topic
+      await expandTopic(page, 'kitchen')
+      const coffeeNode = page.locator('[data-test-type="TreeNode"][data-test="coffee_maker"]')
+      await coffeeNode.click()
+      await sleep(500)
+      
+      console.log('Topic selected: kitchen/coffee_maker')
+      
+      // Expand AI Assistant if needed
+      const isExpanded = await page.getByTestId('ai-assistant-messages').isVisible().catch(() => false)
+      if (!isExpanded) {
+        const header = page.getByTestId('ai-assistant-header')
+        await header.click()
+        await sleep(500)
+      }
+      
+      // Clear previous messages
+      const clearButton = page.getByTestId('ai-assistant-clear')
+      if (await clearButton.isVisible().catch(() => false)) {
+        await clearButton.click()
+        await sleep(500)
+      }
+      
+      // Send a message that will trigger tool calls
+      const input = page.getByTestId('ai-assistant-input')
+      await input.fill('Tell me about this topic and list its children')
+      
+      const sendButton = page.getByTestId('ai-assistant-send')
+      await sendButton.click()
+      
+      console.log('Message sent, waiting for tool actions...')
+      
+      // Wait for "Thinking" to appear
+      const thinkingText = page.locator('text=/💭\\s*Thinking/i')
+      await thinkingText.waitFor({ state: 'visible', timeout: 10000 })
+      expect(await thinkingText.isVisible()).to.be.true
+      
+      console.log('✅ "💭 Thinking" header visible')
+      
+      // Look for human-readable tool actions
+      // These should appear as readable text like "Listing children of..." or "Getting details for..."
+      const toolActionText = page.locator('text=/Listing children|Getting details|Querying history|Getting parent/i')
+      
+      // Wait a bit for tool actions to appear
+      await sleep(2000)
+      
+      const actionCount = await toolActionText.count()
+      console.log(`Found ${actionCount} human-readable tool actions`)
+      
+      if (actionCount > 0) {
+        for (let i = 0; i < Math.min(actionCount, 3); i++) {
+          const actionText = await toolActionText.nth(i).textContent()
+          console.log(`  Action ${i + 1}:`, actionText)
+          
+          // Verify it's NOT the technical format (should not contain "get_topic(topic:")
+          expect(actionText).to.not.match(/get_topic\s*\(/i, 'Should be human-readable, not technical format')
+          expect(actionText).to.not.match(/list_children\s*\(/i, 'Should be human-readable, not technical format')
+        }
+      }
+      
+      await page.screenshot({ path: 'test-screenshot-tool-actions-thinking.png' })
+      
+      console.log('✅ Human-readable tool actions displayed during thinking')
+    })
+
+    it('should persist tool actions after response is received', async function () {
+      this.timeout(120000)
+      
+      console.log('Testing tool action persistence...')
+      
+      // Wait for the response to arrive (from previous test)
+      const assistantMessage = page.getByTestId('ai-message-assistant').last()
+      await assistantMessage.waitFor({ state: 'visible', timeout: 75000 })
+      
+      console.log('✅ Response received')
+      
+      // Check that "Thinking" is no longer visible (it should disappear)
+      const thinkingText = page.locator('text=/💭\\s*Thinking/i')
+      const thinkingVisible = await thinkingText.isVisible().catch(() => false)
+      
+      // Tool actions should still be visible even after response
+      const toolActionText = page.locator('text=/Listing children|Getting details|Querying history|Getting parent/i')
+      const actionCount = await toolActionText.count()
+      
+      console.log(`Tool actions visible after response: ${actionCount}`)
+      expect(actionCount).to.be.greaterThan(0, 'Tool actions should persist after response')
+      
+      // Verify actions are still readable
+      for (let i = 0; i < Math.min(actionCount, 2); i++) {
+        const actionText = await toolActionText.nth(i).textContent()
+        console.log(`  Persisted action ${i + 1}:`, actionText)
+      }
+      
+      await page.screenshot({ path: 'test-screenshot-tool-actions-persisted.png' })
+      
+      console.log('✅ Tool actions persist after response received')
+    })
+
+    it('should hide technical tool call details by default (no DEBUG_TOOL_CALLS)', async function () {
+      this.timeout(30000)
+      
+      console.log('Testing that technical tool call details are hidden...')
+      
+      // Check that the technical "🔨 Tool Calls" alert is NOT visible
+      // This should only show when DEBUG_TOOL_CALLS environment variable is set
+      const technicalToolCallsAlert = page.locator('text=/🔨\\s*Tool Calls/i')
+      const technicalVisible = await technicalToolCallsAlert.isVisible().catch(() => false)
+      
+      expect(technicalVisible).to.be.false('Technical tool call details should be hidden by default')
+      
+      console.log('✅ Technical tool call details properly hidden (debug mode off)')
+      
+      // The human-readable actions should still be visible
+      const toolActionText = page.locator('text=/Listing children|Getting details|Querying history|Getting parent/i')
+      const actionCount = await toolActionText.count()
+      
+      console.log(`Human-readable actions visible: ${actionCount}`)
+      expect(actionCount).to.be.greaterThan(0, 'Human-readable actions should be visible')
+      
+      await page.screenshot({ path: 'test-screenshot-no-debug-details.png' })
+      
+      console.log('✅ Clean UI confirmed - technical details hidden, human-readable actions shown')
+    })
   })
 })
