@@ -522,29 +522,55 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
     return current
   }
 
+  /**
+   * Normalize topic path by removing leading/trailing slashes
+   */
+  private normalizePath(path: string): string {
+    return path.replace(/^\/+/, '').replace(/\/+$/, '')
+  }
+
   private findTopicNode(topicPath: string, currentNode?: TopicNode): TopicNode | null {
     if (!currentNode) {
       return null
     }
 
-    // If current node matches, return it
+    // Normalize paths to handle leading/trailing slashes
+    const normalizedTopicPath = this.normalizePath(topicPath)
     const currentPath = currentNode.path?.() || ''
-    if (currentPath === topicPath) {
+    const normalizedCurrentPath = this.normalizePath(currentPath)
+
+    console.log('findTopicNode: looking for', normalizedTopicPath, 'at', normalizedCurrentPath)
+
+    // If current node matches, return it
+    if (normalizedCurrentPath === normalizedTopicPath) {
+      console.log('findTopicNode: FOUND match at', normalizedCurrentPath)
       return currentNode
     }
 
-    // Search in children
+    // Search in children - only follow edges that are on the path to target
     if (currentNode.edgeCollection?.edges) {
       for (const edge of currentNode.edgeCollection.edges) {
-        if (edge.node) {
-          const found = this.findTopicNode(topicPath, edge.node)
-          if (found) {
-            return found
+        const edgeName = edge.name || (edge as any).topic
+        const edgeNode = edge.node || (edge as any).target
+        
+        if (edgeNode && edgeName) {
+          // Build the full path to this edge
+          const edgePath = normalizedCurrentPath ? `${normalizedCurrentPath}/${edgeName}` : edgeName
+          
+          // Only recurse if this edge is on the path to our target
+          // Either it IS the target, or the target starts with this path
+          if (normalizedTopicPath === edgePath || normalizedTopicPath.startsWith(edgePath + '/')) {
+            console.log('findTopicNode: Following edge', edgeName, 'path:', edgePath)
+            const found = this.findTopicNode(topicPath, edgeNode)
+            if (found) {
+              return found
+            }
           }
         }
       }
     }
 
+    console.log('findTopicNode: Not found at', normalizedCurrentPath)
     return null
   }
 
