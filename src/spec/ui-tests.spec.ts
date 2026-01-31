@@ -494,5 +494,55 @@ describe('MQTT Explorer UI Tests', function () {
       
       await page.screenshot({ path: 'test-screenshot-ai-assistant-cleared.png' })
     })
+
+    it('should list topics when asked by the user', async function() {
+      this.timeout(90000) // LLM API calls can take time, especially with multiple tool rounds
+      
+      // Given: AI Assistant is available (from previous tests)
+      const input = page.locator('[data-testid="ai-assistant-input"]')
+      await input.waitFor({ state: 'visible', timeout: 5000 })
+      
+      // When: User asks to list topics at the root level
+      const testMessage = 'List all the top-level topics. What topics do you see at the root?'
+      await input.fill(testMessage)
+      await sleep(500)
+      
+      const sendButton = page.getByTestId('ai-assistant-send')
+      await sendButton.click()
+      
+      // Then: User message should appear
+      const userMessage = page.getByTestId('ai-message-user').last()
+      await userMessage.waitFor({ state: 'visible', timeout: 5000 })
+      expect(await userMessage.isVisible()).to.be.true
+      
+      // And: Assistant response should appear with topic information (give it extra time for tool calls)
+      const assistantMessage = page.getByTestId('ai-message-assistant').last()
+      await assistantMessage.waitFor({ state: 'visible', timeout: 60000 })
+      expect(await assistantMessage.isVisible()).to.be.true
+      
+      // Verify the response mentions actual topics from our test data
+      const messageText = await assistantMessage.textContent()
+      expect(messageText).to.not.be.empty
+      expect(messageText?.length || 0).to.be.greaterThan(20)
+      
+      // The response should mention at least some of the root topics we published
+      const lowerText = messageText?.toLowerCase() || ''
+      const mentionsTopics = 
+        lowerText.includes('livingroom') || 
+        lowerText.includes('kitchen')
+      
+      expect(mentionsTopics, 'Response should mention at least one of the root-level topics (livingroom or kitchen)').to.be.true
+      
+      console.log('AI Assistant listed topics successfully')
+      console.log('Response preview:', messageText?.substring(0, 300))
+      
+      // Check if tool calls were displayed (they should be visible in the UI)
+      const toolCalls = await page.locator('[class*="toolCall"]').count()
+      if (toolCalls > 0) {
+        console.log(`Tool calls displayed: ${toolCalls}`)
+      }
+      
+      await page.screenshot({ path: 'test-screenshot-ai-assistant-list-topics.png' })
+    })
   })
 })

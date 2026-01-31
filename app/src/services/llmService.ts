@@ -830,22 +830,80 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         }
 
         // Call backend again with tool results
-        result = await backendRpc.call(RpcEvents.llmChat, {
-          messages: this.conversationHistory,
-          topicContext,
-          toolResults,
-        })
+        // May need multiple rounds if LLM requests more tools
+        let maxToolRounds = 5 // Prevent infinite loops
+        let toolRound = 0
+        
+        while (toolRound < maxToolRounds) {
+          toolRound++
+          console.log(`LLM Service: Tool round ${toolRound}`)
+          
+          result = await backendRpc.call(RpcEvents.llmChat, {
+            messages: this.conversationHistory,
+            topicContext,
+            toolResults,
+          })
 
-        console.log('LLM Service: Received final result after tools:', result)
+          console.log('LLM Service: Received result after tools:', result)
 
-        if (!result || !result.response) {
-          console.error('LLM Service: Invalid final result from backend:', result)
-          throw new Error('No final response from AI assistant')
+          if (!result) {
+            console.error('LLM Service: No result from backend')
+            throw new Error('No response from AI assistant')
+          }
+
+          assistantMessage = result.response
+          debugInfo = result.debugInfo
+          toolCalls = result.toolCalls
+
+          // If we have a response or no more tool calls, we're done
+          if (assistantMessage || !toolCalls || toolCalls.length === 0) {
+            break
+          }
+
+          // LLM requested more tool calls
+          console.log('LLM Service: LLM requested', toolCalls.length, 'more tool calls')
+
+          // Add assistant message with tool calls to history
+          this.conversationHistory.push({
+            role: 'assistant',
+            content: assistantMessage || '',
+            tool_calls: toolCalls,
+          })
+
+          // Execute the new tool calls
+          const newToolResults = await Promise.all(
+            toolCalls.map((tc: any) => {
+              const toolCall = {
+                id: tc.id,
+                name: tc.function?.name || tc.name,
+                arguments: tc.function?.arguments || tc.arguments,
+              }
+              return this.executeTool(toolCall, rootNode || undefined)
+            })
+          )
+
+          console.log('LLM Service: New tool results:', newToolResults)
+
+          // Add new tool results to history
+          for (const toolResult of newToolResults) {
+            this.conversationHistory.push({
+              role: 'tool' as any,
+              content: toolResult.content,
+              tool_call_id: toolResult.tool_call_id,
+            })
+          }
+          
+          // Continue loop to send these results back
         }
 
-        assistantMessage = result.response
-        debugInfo = result.debugInfo
-        toolCalls = result.toolCalls // Might have more tool calls (unlikely)
+        if (toolRound >= maxToolRounds) {
+          console.warn('LLM Service: Reached maximum tool calling rounds')
+        }
+
+        if (!assistantMessage) {
+          console.error('LLM Service: No final response after all tool rounds')
+          throw new Error('No final response from AI assistant')
+        }
       }
       
       console.log('LLM Service: Assistant message length:', assistantMessage?.length || 0)
