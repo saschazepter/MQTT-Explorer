@@ -818,6 +818,10 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       let assistantMessage = result.response
       let debugInfo = result.debugInfo
       let toolCalls = result.toolCalls
+      
+      // Save the FIRST set of tool calls to show in UI
+      // (subsequent rounds might have more tool calls, but showing the first set is most useful)
+      const initialToolCalls = toolCalls && toolCalls.length > 0 ? [...toolCalls] : undefined
 
       // If LLM requested tool calls, execute them and get final response
       if (toolCalls && toolCalls.length > 0) {
@@ -970,7 +974,7 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
 
       return {
         response: assistantMessage || '',
-        toolCalls,
+        toolCalls: initialToolCalls, // Return the FIRST set of tool calls to show in UI
         debugInfo,
       }
     } catch (error: unknown) {
