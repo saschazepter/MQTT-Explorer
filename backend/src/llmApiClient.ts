@@ -12,6 +12,7 @@ export interface LLMMessage {
   content: string
   tool_call_id?: string
   name?: string
+  tool_calls?: LLMToolCall[] // For assistant messages that request tools
 }
 
 export interface LLMToolCall {
@@ -106,9 +107,15 @@ export class LLMApiClient {
             role: m.role,
             content: m.content,
           }
+          // For tool response messages
           if (m.role === 'tool') {
             msg.tool_call_id = m.tool_call_id
-            msg.name = m.name
+            // OpenAI requires the function name in tool messages
+            msg.name = m.name || 'unknown_tool'
+          }
+          // For assistant messages with tool calls
+          if (m.role === 'assistant' && m.tool_calls) {
+            msg.tool_calls = m.tool_calls
           }
           return msg
         }),
@@ -120,6 +127,18 @@ export class LLMApiClient {
       if (this.tools && this.tools.length > 0) {
         requestBody.tools = this.tools
       }
+
+      // Debug: Log messages to see what's being sent
+      console.log('OpenAI API Request - Messages:')
+      requestBody.messages.forEach((msg: any, idx: number) => {
+        console.log(`  [${idx}] role: ${msg.role}, has_tool_calls: ${!!msg.tool_calls}, has_tool_call_id: ${!!msg.tool_call_id}`)
+        if (msg.tool_calls) {
+          console.log(`      tool_calls:`, JSON.stringify(msg.tool_calls, null, 2))
+        }
+        if (msg.tool_call_id) {
+          console.log(`      tool_call_id: ${msg.tool_call_id}`)
+        }
+      })
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',

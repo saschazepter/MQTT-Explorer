@@ -40,8 +40,10 @@ declare global {
 }
 
 export interface LLMMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
+  tool_calls?: any[] // For assistant messages that request tools
+  tool_call_id?: string // For tool response messages
 }
 
 export type LLMProvider = 'openai' | 'gemini'
@@ -719,7 +721,8 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       console.log('LLM Service: Has toolCalls:', !!result?.toolCalls)
       console.log('LLM Service: Has debugInfo:', !!result?.debugInfo)
 
-      if (!result || !result.response) {
+      // Allow empty response if tool calls are present (LLM will respond after tools execute)
+      if (!result || (!result.response && !result.toolCalls)) {
         console.error('LLM Service: Invalid result from backend:', result)
         throw new Error('No response from AI assistant')
       }
@@ -729,18 +732,39 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       let toolCalls = result.toolCalls
 
       // If LLM requested tool calls, execute them and get final response
-      if (toolCalls && toolCalls.length > 0 && currentNode) {
+      if (toolCalls && toolCalls.length > 0) {
+        if (!currentNode) {
+          console.warn('LLM Service: Tool calls requested but no currentNode provided')
+          console.warn('LLM Service: Cannot execute tools without topic tree access')
+          // Return what we have (empty response with tool calls for debugging)
+          return {
+            response: 'Tool execution not available (no topic context)',
+            toolCalls,
+            debugInfo,
+          }
+        }
+
         console.log('LLM Service: Executing', toolCalls.length, 'tool calls')
 
         // Add assistant message with tool calls to history
+        // OpenAI requires the tool_calls property to be included
         this.conversationHistory.push({
           role: 'assistant',
-          content: assistantMessage,
+          content: assistantMessage || '', // Empty content is OK when there are tool calls
+          tool_calls: toolCalls, // Include original tool calls
         })
 
         // Execute all tool calls
         const toolResults = await Promise.all(
-          toolCalls.map((tc: any) => this.executeTool(tc, currentNode))
+          toolCalls.map((tc: any) => {
+            // Transform OpenAI tool call format to our format
+            const toolCall = {
+              id: tc.id,
+              name: tc.function?.name || tc.name,
+              arguments: tc.function?.arguments || tc.arguments,
+            }
+            return this.executeTool(toolCall, currentNode)
+          })
         )
 
         console.log('LLM Service: Tool results:', toolResults)
@@ -750,6 +774,7 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
           this.conversationHistory.push({
             role: 'tool' as any,
             content: toolResult.content,
+            tool_call_id: toolResult.tool_call_id, // Required by OpenAI
           })
         }
 
@@ -772,13 +797,13 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         toolCalls = result.toolCalls // Might have more tool calls (unlikely)
       }
       
-      console.log('LLM Service: Assistant message length:', assistantMessage.length)
+      console.log('LLM Service: Assistant message length:', assistantMessage?.length || 0)
       console.log('LLM Service: Debug info:', debugInfo)
 
       // Add final assistant response to history
       this.conversationHistory.push({
         role: 'assistant',
-        content: assistantMessage,
+        content: assistantMessage || '',
       })
 
       // Keep conversation history manageable (last 10 messages + system)
@@ -790,7 +815,7 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       }
 
       return {
-        response: assistantMessage,
+        response: assistantMessage || '',
         toolCalls,
         debugInfo,
       }

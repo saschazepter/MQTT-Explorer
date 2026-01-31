@@ -489,20 +489,9 @@ async function startServer() {
         throw new Error('Invalid request: messages required')
       }
 
-      // If tool results provided, add them to messages
-      let messagesWithToolResults: any[] = messages
-      if (toolResults && toolResults.length > 0) {
-        console.log('Adding tool results to messages:', toolResults.length)
-        messagesWithToolResults = [
-          ...messages,
-          ...toolResults.map(result => ({
-            role: 'tool' as const,
-            content: result.content,
-            tool_call_id: result.tool_call_id,
-            name: result.name,
-          })),
-        ]
-      }
+      // Note: Tool results are now added by the frontend to the conversation history
+      // The toolResults parameter is kept for backwards compatibility but not used
+      // The messages array already contains tool messages when tool execution happens
 
       // Define available tools for LLM
       const tools = [
@@ -600,7 +589,7 @@ async function startServer() {
       const startTime = Date.now()
       
       // Call LLM API using shared client
-      const apiResponse = await llmClient.chat(messagesWithToolResults)
+      const apiResponse = await llmClient.chat(messages)
       
       const endTime = Date.now()
 
@@ -625,7 +614,7 @@ async function startServer() {
           url: apiResponse.provider === 'openai' 
             ? 'https://api.openai.com/v1/chat/completions'
             : `https://generativelanguage.googleapis.com/v1beta/models/${apiResponse.model}:generateContent`,
-          messageCount: messagesWithToolResults.length,
+          messageCount: messages.length,
         },
         response: {
           contentLength: apiResponse.content.length,
