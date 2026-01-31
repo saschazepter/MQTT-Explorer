@@ -46,6 +46,18 @@ You have access to the following tools to query MQTT topic information:
 3. list_children(topic, limit) - List child topics under a parent to explore the hierarchy
 4. list_parents(topic) - Get the parent topic path hierarchy to understand structure
 
+**CRITICAL: Topic Path Requirements:**
+- **ONLY use EXACT topic paths** (e.g., "home/bedroom/lamp", "kitchen/sensor")
+- **NEVER use MQTT wildcards** (+ or #) in tool calls - they will NOT work
+- Wildcards are for subscriptions only, NOT for querying existing topics
+- To explore multiple topics, use list_children() first, then query each topic individually
+
+**Examples:**
+✅ CORRECT: get_topic("home/bedroom/lamp")
+✅ CORRECT: list_children("home/bedroom")
+❌ WRONG: get_topic("home/+/lamp") - wildcards don't work!
+❌ WRONG: list_children("home/#") - wildcards don't work!
+
 Use these tools when you need more information to provide accurate answers or suggestions.
 
 IMPORTANT INSTRUCTIONS:
