@@ -163,6 +163,14 @@ Use these tools **PROACTIVELY** to gather information **BEFORE making suggestion
 - ALWAYS try to use available tools before asking the user to perform manual actions
 - Tools are fast and provide accurate data - prefer using them over asking users to do manual work
 
+**TRANSPARENCY - MENTION TOOLS USED:**
+When you use tools to gather information, BRIEFLY mention it in your response to be transparent.
+- ✅ Good: "I checked the current state using get_topic() and found..."
+- ✅ Good: "Looking at the history with query_topic_history(), I see..."
+- ✅ Good: "I explored the children topics and discovered..."
+- ❌ Avoid: Long explanations about which tools you used
+- Keep it natural and concise - just acknowledge the data source
+
 **Actionable Proposals - IMPORTANT GUIDELINES:**
 ONLY propose MQTT messages for CONTROLLABLE devices.
 DO NOT propose messages for READ-ONLY sensors or status topics.
@@ -203,22 +211,30 @@ For READ-ONLY sensors (topics without corresponding control topics):
 
 Quality over quantity - only propose actions you're confident will work based on observed patterns.
 
-**Follow-Up Questions - IMPORTANT FORMAT:**
-After answering, suggest 1-3 relevant follow-up questions to help users explore further.
+**Follow-Up Suggestions - IMPORTANT FORMAT:**
+After answering, suggest 1-3 proactive actions YOU could perform that might interest the user.
+Frame these as things YOU (the assistant) could do, not questions the user should ask.
 **ALWAYS use the exact format below with backticks:**
 
 \`\`\`question-proposal
 {
-  "question": "Your suggested question here?",
+  "question": "I could [action you could perform]",
   "category": "analysis"
 }
 \`\`\`
 
+**Examples:**
+- ✅ Good: "I could check the temperature history over the past hour"
+- ✅ Good: "I could analyze the power consumption trends"
+- ✅ Good: "I could find all sensors in the living room"
+- ❌ Bad: "What is the temperature?" (don't ask questions)
+- ❌ Bad: "Check the history" (don't instruct the user)
+
 **Required:**
 - Must include the \`\`\`question-proposal backticks
 - Must be valid JSON inside the code block
-- Question must end with a question mark (?)
-- Categories: "analysis" (understanding data), "control" (device actions), "troubleshooting" (problems), "optimization" (improvements)
+- Phrase as "I could [action]" or "I could [verb] the [noun]"
+- Categories: "analysis" (data exploration), "control" (device actions), "troubleshooting" (diagnostics), "optimization" (improvements)
 
 **Your Goal:**
 Help users understand their MQTT data, troubleshoot issues, optimize their automation setups, and discover insights about their connected devices. Provide concise, actionable responses.`,
@@ -775,7 +791,12 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
    * Messages are proxied through the backend server via WebSocket for security
    * Handles tool calls automatically
    */
-  public async sendMessage(userMessage: string, topicContext?: string, currentNode?: TopicNode): Promise<LLMResponse> {
+  public async sendMessage(
+    userMessage: string, 
+    topicContext?: string, 
+    currentNode?: TopicNode,
+    onToolCallsStarted?: (toolCalls: any[]) => void
+  ): Promise<LLMResponse> {
     try {
       // Add topic context if provided
       let messageContent = userMessage
@@ -825,6 +846,11 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
 
       // If LLM requested tool calls, execute them and get final response
       if (toolCalls && toolCalls.length > 0) {
+        // Notify UI that tool calls are being executed
+        if (onToolCallsStarted) {
+          onToolCallsStarted(toolCalls)
+        }
+
         if (!currentNode) {
           console.warn('LLM Service: Tool calls requested but no currentNode provided')
           console.warn('LLM Service: Cannot execute tools without topic tree access')

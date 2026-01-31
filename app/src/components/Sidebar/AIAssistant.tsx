@@ -62,6 +62,7 @@ function AIAssistant(props: Props) {
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [showDebug, setShowDebug] = useState(false)
+  const [pendingToolCalls, setPendingToolCalls] = useState<Array<{id: string, name: string, arguments: string}>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const llmService = getLLMService()
   const previousNodePathRef = useRef<string>('')
@@ -114,6 +115,7 @@ function AIAssistant(props: Props) {
       setInputValue('')
       setError(null)
       setLoading(true)
+      setPendingToolCalls([]) // Clear previous pending tool calls
 
       // Add user message to UI
       const userMessage: ChatMessage = {
@@ -129,7 +131,19 @@ function AIAssistant(props: Props) {
 
         // Send to LLM - now returns { response, toolCalls, debugInfo }
         // Pass node for tool execution
-        const llmResponse = await llmService.sendMessage(text, topicContext, node)
+        const llmResponse = await llmService.sendMessage(text, topicContext, node, (toolCalls) => {
+          // Callback to show tool calls while they're being executed
+          if (toolCalls && toolCalls.length > 0) {
+            setPendingToolCalls(toolCalls.map(tc => ({
+              id: tc.id,
+              name: tc.function.name,
+              arguments: tc.function.arguments
+            })))
+          }
+        })
+
+        // Clear pending tool calls now that we have the response
+        setPendingToolCalls([])
 
         // Parse response for proposals and questions
         const parsed = llmService.parseResponse(llmResponse.response)
@@ -154,6 +168,7 @@ function AIAssistant(props: Props) {
         console.error('AI Assistant error:', err)
         console.error('Error details:', error)
         setError(error.message || 'Failed to get response from AI assistant')
+        setPendingToolCalls([]) // Clear on error
       } finally {
         setLoading(false)
       }
@@ -357,11 +372,11 @@ function AIAssistant(props: Props) {
                   </Box>
                 )}
 
-                {/* Render question proposals if any */}
+                {/* Render question proposals (now action suggestions) if any */}
                 {msg.questionProposals && msg.questionProposals.length > 0 && (
                   <Box className={classes.questionProposalsContainer}>
                     <Typography variant="caption" color="textSecondary" gutterBottom>
-                      Follow-up questions:
+                      💡 Suggestions:
                     </Typography>
                     <Box className={classes.suggestionChips}>
                       {msg.questionProposals.map((qProposal, qIdx) => (
@@ -430,6 +445,36 @@ function AIAssistant(props: Props) {
                 <Typography variant="caption" color="textSecondary" sx={{ ml: 1 }}>
                   Thinking...
                 </Typography>
+                {/* Show pending tool calls while thinking */}
+                {pendingToolCalls.length > 0 && (
+                  <Box sx={{ ml: 2, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    {pendingToolCalls.map((toolCall, idx) => {
+                      let parsedArgs
+                      try {
+                        parsedArgs = JSON.parse(toolCall.arguments)
+                      } catch {
+                        parsedArgs = toolCall.arguments
+                      }
+                      return (
+                        <Chip
+                          key={idx}
+                          label={
+                            <span>
+                              🔧 <strong>{toolCall.name}(</strong>
+                              {typeof parsedArgs === 'object' 
+                                ? Object.entries(parsedArgs).map(([k, v]) => `${k}: "${v}"`).join(', ')
+                                : parsedArgs}
+                              <strong>)</strong>
+                            </span>
+                          }
+                          size="small"
+                          variant="outlined"
+                          className={classes.pendingToolChip}
+                        />
+                      )
+                    })}
+                  </Box>
+                )}
               </Box>
             )}
 
@@ -719,6 +764,13 @@ const styles = (theme: Theme) => ({
     '&:hover': {
       backgroundColor: theme.palette.secondary.dark,
     },
+  },
+  pendingToolChip: {
+    marginTop: theme.spacing(0.5),
+    fontSize: '0.7rem',
+    fontFamily: 'monospace',
+    backgroundColor: theme.palette.info.light + '30',
+    borderColor: theme.palette.info.main,
   },
   debugContainer: {
     marginTop: theme.spacing(1),
