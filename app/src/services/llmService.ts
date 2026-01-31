@@ -732,10 +732,24 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
     const maxChildren = Math.min(limit, 50)
     
     for (const edge of node.edgeCollection.edges.slice(0, maxChildren)) {
-      if (edge.name && edge.node) {
-        const childPath = topicPath ? `${topicPath}/${edge.name}` : edge.name
-        const hasValue = edge.node.message?.payload ? '✓' : '○'
-        const childCount = edge.node.childTopicCount?.() || 0
+      console.log('Processing edge:', {
+        hasName: !!edge.name,
+        name: edge.name,
+        hasTopic: !!(edge as any).topic,
+        topic: (edge as any).topic,
+        hasNode: !!edge.node,
+        hasTarget: !!(edge as any).target,
+        edgeKeys: Object.keys(edge),
+      })
+      
+      // Try both edge.name and edge.topic (different versions might use different properties)
+      const edgeName = edge.name || (edge as any).topic
+      const edgeNode = edge.node || (edge as any).target
+      
+      if (edgeName && edgeNode) {
+        const childPath = topicPath ? `${topicPath}/${edgeName}` : edgeName
+        const hasValue = edgeNode.message?.payload ? '✓' : '○'
+        const childCount = edgeNode.childTopicCount?.() || 0
         const suffix = childCount > 0 ? ` (${childCount} subtopics)` : ''
         children.push(`${hasValue} ${childPath}${suffix}`)
       }
