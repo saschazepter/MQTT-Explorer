@@ -45,6 +45,11 @@ interface ChatMessage {
   proposals?: MessageProposal[]
   questionProposals?: QuestionProposal[]
   debugInfo?: any // API debug information
+  toolCalls?: Array<{
+    id: string
+    name: string
+    arguments: string
+  }>
 }
 
 function AIAssistant(props: Props) {
@@ -122,19 +127,24 @@ function AIAssistant(props: Props) {
         // Generate topic context if available
         const topicContext = node ? llmService.generateTopicContext(node) : undefined
 
-        // Send to LLM - now returns { response, debugInfo }
+        // Send to LLM - now returns { response, toolCalls, debugInfo }
         const llmResponse = await llmService.sendMessage(text, topicContext)
 
         // Parse response for proposals and questions
         const parsed = llmService.parseResponse(llmResponse.response)
 
-        // Add assistant response to UI with proposals, questions, and debug info
+        // Add assistant response to UI with proposals, questions, tool calls, and debug info
         const assistantMessage: ChatMessage = {
           role: 'assistant',
           content: parsed.text,
           timestamp: new Date(),
           proposals: parsed.proposals,
           questionProposals: parsed.questions,
+          toolCalls: llmResponse.toolCalls?.map(tc => ({
+            id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          })),
           debugInfo: llmResponse.debugInfo, // Store debug info
         }
         setMessages(prev => [...prev, assistantMessage])
@@ -371,6 +381,43 @@ function AIAssistant(props: Props) {
                         />
                       ))}
                     </Box>
+                  </Box>
+                )}
+
+                {/* Render tool calls if any */}
+                {msg.toolCalls && msg.toolCalls.length > 0 && (
+                  <Box className={classes.toolCallsContainer}>
+                    <Alert severity="info" icon={<BugReportIcon fontSize="small" />} className={classes.toolCallAlert}>
+                      <Typography variant="caption" fontWeight="bold" gutterBottom>
+                        🔧 Tool Calls ({msg.toolCalls.length})
+                      </Typography>
+                      {msg.toolCalls.map((toolCall, tIdx) => {
+                        let parsedArgs
+                        try {
+                          parsedArgs = JSON.parse(toolCall.arguments)
+                        } catch {
+                          parsedArgs = toolCall.arguments
+                        }
+                        return (
+                          <Box key={tIdx} className={classes.toolCall}>
+                            <Typography variant="caption" component="div">
+                              <strong>{toolCall.name}(</strong>
+                              {typeof parsedArgs === 'object' ? (
+                                Object.entries(parsedArgs).map(([key, value], i, arr) => (
+                                  <span key={key}>
+                                    <em>{key}</em>: <code>{JSON.stringify(value)}</code>
+                                    {i < arr.length - 1 ? ', ' : ''}
+                                  </span>
+                                ))
+                              ) : (
+                                <code>{parsedArgs}</code>
+                              )}
+                              <strong>)</strong>
+                            </Typography>
+                          </Box>
+                        )
+                      })}
+                    </Alert>
                   </Box>
                 )}
               </Box>
@@ -687,6 +734,33 @@ const styles = (theme: Theme) => ({
     whiteSpace: 'pre-wrap' as const,
     wordBreak: 'break-word' as const,
     color: theme.palette.text.secondary,
+  },
+  toolCallsContainer: {
+    marginTop: theme.spacing(1),
+    marginLeft: theme.spacing(6),
+  },
+  toolCallAlert: {
+    backgroundColor: theme.palette.info.light + '20',
+    borderLeft: `3px solid ${theme.palette.info.main}`,
+  },
+  toolCall: {
+    marginTop: theme.spacing(0.5),
+    padding: theme.spacing(0.5),
+    backgroundColor: theme.palette.background.default,
+    borderRadius: theme.shape.borderRadius,
+    fontFamily: 'monospace',
+    fontSize: '0.75rem',
+    '& code': {
+      color: theme.palette.info.dark,
+      fontWeight: 500,
+    },
+    '& em': {
+      color: theme.palette.text.secondary,
+      fontStyle: 'normal',
+    },
+    '& strong': {
+      color: theme.palette.text.primary,
+    },
   },
 })
 

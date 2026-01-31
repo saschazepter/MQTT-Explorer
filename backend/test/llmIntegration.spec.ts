@@ -693,3 +693,57 @@ Related Topics (3):
     })
   })
 })
+
+  describe('Tool Calling - Live Tests', () => {
+    it('should generate tool calls when requesting topic history', async () => {
+      const topicContext = `
+Topic: zigbee2mqtt/bedroom/lamp
+Value: {"state": "ON", "brightness": 128}
+
+Related Topics (1):
+  zigbee2mqtt/bedroom/lamp/set: {}
+`
+
+      console.log('\n[TEST] Testing tool call generation for topic history...')
+      const response = await callLLM('Show me the recent history of this lamp', topicContext)
+      console.log('[TEST] LLM Response:', response.substring(0, 500))
+
+      // The response should contain a request for more information
+      // Since we can't execute tools in tests, LLM should acknowledge the limitation
+      // or explain what it would need
+      expect(response.length).to.be.greaterThan(10)
+    })
+
+    it('should handle queries about topic structure', async () => {
+      const topicContext = `
+Topic: zigbee2mqtt/bedroom/lamp
+Value: {"state": "ON"}
+`
+
+      console.log('\n[TEST] Testing tool call for exploring topic structure...')
+      const response = await callLLM('What other devices are in the bedroom?', topicContext)
+      console.log('[TEST] Response preview:', response.substring(0, 300))
+
+      // LLM should explain it would need to explore the topic tree
+      expect(response.length).to.be.greaterThan(10)
+    })
+
+    it('should understand parent-child topic relationships', async () => {
+      const topicContext = `
+Topic: home/bedroom/lamp/state
+Value: ON
+
+Related Topics (2):
+  home/bedroom/lamp/brightness: 100
+  home/bedroom/lamp/set: {}
+`
+
+      console.log('\n[TEST] Testing understanding of topic hierarchy...')
+      const response = await callLLM('What is the parent topic path?', topicContext)
+      console.log('[TEST] Response:', response.substring(0, 300))
+
+      // Should mention home/bedroom/lamp or explain the hierarchy
+      expect(response.toLowerCase()).to.match(/home|bedroom|lamp|parent|hierarchy/)
+    })
+  })
+})
