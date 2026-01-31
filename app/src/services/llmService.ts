@@ -499,33 +499,61 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
     toolCall: { id: string; name: string; arguments: string },
     rootNode?: TopicNode
   ): Promise<{ tool_call_id: string; name: string; content: string }> {
+    console.log('LLM Service: executeTool called')
+    console.log('Tool ID:', toolCall.id)
+    console.log('Tool name:', toolCall.name)
+    console.log('Tool arguments:', toolCall.arguments)
+    console.log('Has rootNode:', !!rootNode)
+    
     try {
       const args = JSON.parse(toolCall.arguments)
+      console.log('Parsed arguments:', args)
+      
       let result: string
 
       switch (toolCall.name) {
         case 'query_topic_history':
+          console.log('Executing query_topic_history for topic:', args.topic)
           result = this.queryTopicHistory(args.topic, args.limit || 10, rootNode)
+          console.log('query_topic_history result length:', result.length)
+          console.log('query_topic_history result preview:', result.substring(0, 200))
           break
         case 'get_topic':
+          console.log('Executing get_topic for topic:', args.topic)
           result = this.getTopic(args.topic, rootNode)
+          console.log('get_topic result length:', result.length)
+          console.log('get_topic result preview:', result.substring(0, 200))
           break
         case 'list_children':
+          console.log('Executing list_children for topic:', args.topic)
           result = this.listChildren(args.topic, args.limit || 20, rootNode)
+          console.log('list_children result length:', result.length)
+          console.log('list_children result preview:', result.substring(0, 200))
           break
         case 'list_parents':
+          console.log('Executing list_parents for topic:', args.topic)
           result = this.listParents(args.topic, rootNode)
+          console.log('list_parents result length:', result.length)
+          console.log('list_parents result preview:', result.substring(0, 200))
           break
         default:
+          console.error('Unknown tool requested:', toolCall.name)
           result = `Error: Unknown tool '${toolCall.name}'`
       }
 
+      console.log('Tool execution complete. Returning result for', toolCall.name)
       return {
         tool_call_id: toolCall.id,
         name: toolCall.name,
         content: result,
       }
     } catch (error) {
+      console.error('Error executing tool:', error)
+      console.error('Error details:', {
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+        error: error instanceof Error ? error.message : String(error),
+      })
       return {
         tool_call_id: toolCall.id,
         name: toolCall.name,
