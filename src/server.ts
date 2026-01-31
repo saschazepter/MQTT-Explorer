@@ -477,21 +477,8 @@ async function startServer() {
       console.log('='.repeat(80) + '\n')
       
       // Get LLM configuration from environment
-      const envProvider = process.env.LLM_PROVIDER
-      let provider: 'openai' | 'gemini' = 'openai'
-
-      // Validate provider
-      if (envProvider === 'gemini' || envProvider === 'openai') {
-        provider = envProvider
-      } else if (envProvider) {
-        // Invalid provider specified
-        console.warn(`Invalid LLM_PROVIDER: ${envProvider}, using default: openai`)
-      }
-
-      const apiKey =
-        provider === 'gemini'
-          ? process.env.GEMINI_API_KEY || process.env.LLM_API_KEY
-          : process.env.OPENAI_API_KEY || process.env.LLM_API_KEY
+      const envProvider = process.env.LLM_PROVIDER as 'openai' | 'gemini' | undefined
+      const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.LLM_API_KEY
 
       if (!apiKey) {
         throw new Error('LLM service not configured')
@@ -501,167 +488,70 @@ async function startServer() {
         throw new Error('Invalid request: messages required')
       }
 
-      // Call appropriate LLM provider
-      let response: string
-      let debugInfo: any = {}
+      // Create LLM client with shared logic
+      const llmClient = new LLMApiClient({
+        apiKey,
+        provider: envProvider,
+        maxTokens: 1000,
+      })
 
-      if (provider === 'gemini') {
-        // Gemini API
-        const model = 'gemini-1.5-flash-latest'
-        const contents = messages
-          .filter((msg: any) => msg.role !== 'system')
-          .map((msg: any) => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.content }],
-          }))
+      // Log request details
+      console.log('LLM Provider:', (llmClient as any).provider)
+      console.log('LLM Model:', (llmClient as any).model)
+      console.log('='.repeat(80) + '\n')
 
-        // Prepend system message to first user message
-        const systemMsg = messages.find((msg: any) => msg.role === 'system')
-        if (systemMsg && contents.length > 0) {
-          contents[0].parts.unshift({ text: systemMsg.content })
-        }
+      const startTime = Date.now()
+      
+      // Call LLM API using shared client
+      const apiResponse = await llmClient.chat(messages)
+      
+      const endTime = Date.now()
 
-        const requestBody = {
-          contents,
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 500,
-          },
-        }
+      // Log response
+      console.log('\n' + '='.repeat(80))
+      console.log('LLM RESPONSE')
+      console.log('='.repeat(80))
+      console.log('Duration:', endTime - startTime, 'ms')
+      console.log('Provider:', apiResponse.provider)
+      console.log('Model:', apiResponse.model)
+      console.log('Content length:', apiResponse.content.length)
+      if (apiResponse.usage) {
+        console.log('Usage:', apiResponse.usage)
+      }
+      console.log('='.repeat(80) + '\n')
 
-        // Log complete request to console (no truncation)
-        console.log('\n' + '='.repeat(80))
-        console.log('LLM REQUEST (Gemini)')
-        console.log('='.repeat(80))
-        console.log('Provider:', provider)
-        console.log('Model:', model)
-        console.log('Messages Count:', messages.length)
-        console.log('\nFull Request Body:')
-        console.log(inspect(requestBody, { depth: null, colors: true, maxArrayLength: null }))
-        console.log('='.repeat(80) + '\n')
-
-        const startTime = Date.now()
-        const geminiResponse = await axios.post(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          requestBody,
-          {
-            timeout: 30000,
-          }
-        )
-        const endTime = Date.now()
-
-        // Log complete response to console (no truncation)
-        console.log('\n' + '='.repeat(80))
-        console.log('LLM RESPONSE (Gemini)')
-        console.log('='.repeat(80))
-        console.log('Duration:', endTime - startTime, 'ms')
-        console.log('\nFull Response:')
-        console.log(inspect(geminiResponse.data, { depth: null, colors: true, maxArrayLength: null }))
-        console.log('='.repeat(80) + '\n')
-
-        if (!geminiResponse.data.candidates || geminiResponse.data.candidates.length === 0) {
-          throw new Error('No response from Gemini')
-        }
-
-        response = geminiResponse.data.candidates[0].content.parts[0].text
-
-        // Capture debug info (remove API key from URL for security)
-        debugInfo = {
-          provider: 'gemini',
-          model,
-          request: {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-            body: requestBody,
-          },
-          response: geminiResponse.data,
-          timing: {
-            duration_ms: endTime - startTime,
-            timestamp: new Date().toISOString(),
-          },
-        }
-      } else {
-        // OpenAI API using official SDK
-        const model = 'gpt-5-mini'
-        const openai = new OpenAI({
-          apiKey,
-          timeout: 30000,
-          maxRetries: 2, // SDK handles retries with exponential backoff
-        })
-
-        const requestBody = {
-          model,
-          messages,
-          max_completion_tokens: 1000, // Increased for reasoning models
-          reasoning_effort: "minimal" as const, // Reduce reasoning tokens for efficiency
-        }
-
-        // Log complete request to console (no truncation)
-        console.log('\n' + '='.repeat(80))
-        console.log('LLM REQUEST (OpenAI)')
-        console.log('='.repeat(80))
-        console.log('Provider:', 'openai')
-        console.log('Model:', model)
-        console.log('Messages Count:', messages.length)
-        console.log('\nFull Request Body:')
-        console.log(inspect(requestBody, { depth: null, colors: true, maxArrayLength: null }))
-        console.log('\nSystem Message:')
-        const systemMsg = messages.find((msg: any) => msg.role === 'system')
-        if (systemMsg) {
-          console.log(inspect(systemMsg, { depth: null, colors: true }))
-        }
-        console.log('='.repeat(80) + '\n')
-
-        const startTime = Date.now()
-        const openaiResponse = await openai.chat.completions.create(requestBody)
-        const endTime = Date.now()
-
-        // Log complete response to console (no truncation)
-        console.log('\n' + '='.repeat(80))
-        console.log('LLM RESPONSE (OpenAI)')
-        console.log('='.repeat(80))
-        console.log('Duration:', endTime - startTime, 'ms')
-        console.log('\nFull Response:')
-        console.log(inspect(openaiResponse, { depth: null, colors: true, maxArrayLength: null }))
-        console.log('='.repeat(80) + '\n')
-
-        if (!openaiResponse.choices || openaiResponse.choices.length === 0) {
-          throw new Error('No response from OpenAI')
-        }
-
-        response = openaiResponse.choices[0].message.content || ''
-
-        // Capture debug info
-        debugInfo = {
-          provider: 'openai',
-          model,
-          request: {
-            url: 'https://api.openai.com/v1/chat/completions',
-            body: requestBody,
-          },
-          response: {
-            id: openaiResponse.id,
-            model: openaiResponse.model,
-            created: openaiResponse.created,
-            choices: openaiResponse.choices,
-            usage: openaiResponse.usage,
-            system_fingerprint: openaiResponse.system_fingerprint,
-          },
-          timing: {
-            duration_ms: endTime - startTime,
-            timestamp: new Date().toISOString(),
-          },
-        }
+      // Prepare debug info
+      const debugInfo = {
+        provider: apiResponse.provider,
+        model: apiResponse.model,
+        request: {
+          url: apiResponse.provider === 'openai' 
+            ? 'https://api.openai.com/v1/chat/completions'
+            : `https://generativelanguage.googleapis.com/v1beta/models/${apiResponse.model}:generateContent`,
+          messageCount: messages.length,
+        },
+        response: {
+          contentLength: apiResponse.content.length,
+          usage: apiResponse.usage,
+        },
+        timing: {
+          duration_ms: endTime - startTime,
+          timestamp: new Date().toISOString(),
+        },
       }
 
       // Return the response with debug info
       console.log('\n' + '='.repeat(80))
       console.log('LLM RPC HANDLER - Returning response')
       console.log('='.repeat(80))
-      console.log('Response length:', response.length)
-      console.log('Has debugInfo:', !!debugInfo)
+      console.log('Response length:', apiResponse.content.length)
+      console.log('Has debugInfo:', true)
       console.log('='.repeat(80) + '\n')
       
-      return { response, debugInfo }
+      return {
+        response: apiResponse.content,
+        debugInfo,
+      }
     } catch (error: any) {
       console.error('\n' + '='.repeat(80))
       console.error('LLM RPC ERROR')
@@ -671,18 +561,12 @@ async function startServer() {
       console.error('Full error:', inspect(error, { depth: null, colors: true }))
       console.error('='.repeat(80) + '\n')
 
-      // Handle OpenAI SDK errors
-      if (error.status === 401 || error.status === 403) {
+      // Handle API errors
+      if (error.message?.includes('401') || error.message?.includes('403') || error.message?.includes('Invalid API key')) {
         throw new Error('Invalid API key configuration')
-      } else if (error.status === 429) {
+      } else if (error.message?.includes('429') || error.message?.includes('rate limit')) {
         throw new Error('Rate limit exceeded. Please try again later.')
-      }
-      // Handle axios errors (Gemini)
-      else if (error.response?.status === 401 || error.response?.status === 403) {
-        throw new Error('Invalid API key configuration')
-      } else if (error.response?.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.')
-      } else if (error.code === 'ECONNABORTED') {
+      } else if (error.message?.includes('timeout')) {
         throw new Error('Request timeout. Please try again.')
       } else {
         throw new Error(error.message || 'Failed to get response from LLM service')

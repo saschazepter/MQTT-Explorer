@@ -1,13 +1,13 @@
 import { expect } from 'chai'
 import 'mocha'
-import { MessageProposal, QuestionProposal } from '../llmService'
-import { LLMApiClient, createLLMClientFromEnv } from '../llmApiClient'
+import { MessageProposal, QuestionProposal } from '../../app/src/services/llmService'
+import { LLMApiClient, createLLMClientFromEnv } from '../src/llmApiClient'
 
 /**
  * Live LLM Integration Tests
  *
  * These tests make actual calls to the LLM API to validate proposal quality.
- * They now use the frontend LLM client logic without requiring the browser/RPC infrastructure.
+ * They now use the backend LLM client logic.
  *
  * Requirements:
  * - OPENAI_API_KEY, GEMINI_API_KEY, or LLM_API_KEY environment variable must be set
@@ -29,7 +29,7 @@ const hasApiKey = !!process.env.OPENAI_API_KEY || !!process.env.GEMINI_API_KEY |
 let llmClient: LLMApiClient | null = null
 
 /**
- * Helper function to call LLM API using the frontend client
+ * Helper function to call LLM API using the backend client
  */
 async function callLLM(userMessage: string, context?: string): Promise<string> {
   if (!llmClient) {
