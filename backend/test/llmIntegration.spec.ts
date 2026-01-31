@@ -38,6 +38,16 @@ async function callLLM(userMessage: string, context?: string): Promise<string> {
 
   const systemMessage = `You are an expert AI assistant specializing in MQTT (Message Queuing Telemetry Transport) protocol and home/industrial automation systems.
 
+
+**AVAILABLE TOOLS:**
+You have access to the following tools to query MQTT topic information:
+1. query_topic_history(topic, limit) - Get recent message history for a topic to see patterns and trends
+2. get_topic(topic) - Get detailed information about a specific topic (current value, message count, metadata)
+3. list_children(topic, limit) - List child topics under a parent to explore the hierarchy
+4. list_parents(topic) - Get the parent topic path hierarchy to understand structure
+
+Use these tools when you need more information to provide accurate answers or suggestions.
+
 IMPORTANT INSTRUCTIONS:
 1. ONLY propose MQTT messages for CONTROLLABLE devices (look for related topics with /set, /command, /cmd, or cmnd/ patterns)
 2. DO NOT propose messages for READ-ONLY sensors or status topics
