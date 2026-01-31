@@ -453,7 +453,7 @@ async function startServer() {
   })
 
   // LLM Chat RPC handler - proxies requests to LLM providers via WebSocket
-  backendRpc.on(RpcEvents.llmChat, async ({ messages, topicContext }) => {
+  backendRpc.on(RpcEvents.llmChat, async ({ messages, topicContext, toolResults }) => {
     try {
       // Log received parameters
       console.log('\n' + '='.repeat(80))
@@ -461,6 +461,7 @@ async function startServer() {
       console.log('='.repeat(80))
       console.log('Messages count:', messages?.length || 0)
       console.log('Topic context provided:', !!topicContext)
+      console.log('Tool results provided:', !!toolResults)
       if (topicContext) {
         console.log('Topic context length:', topicContext.length, 'characters')
         console.log('Topic context preview:', topicContext.substring(0, 200) + '...')
@@ -488,11 +489,107 @@ async function startServer() {
         throw new Error('Invalid request: messages required')
       }
 
+      // If tool results provided, add them to messages
+      let messagesWithToolResults: any[] = messages
+      if (toolResults && toolResults.length > 0) {
+        console.log('Adding tool results to messages:', toolResults.length)
+        messagesWithToolResults = [
+          ...messages,
+          ...toolResults.map(result => ({
+            role: 'tool' as const,
+            content: result.content,
+            tool_call_id: result.tool_call_id,
+            name: result.name,
+          })),
+        ]
+      }
+
+      // Define available tools for LLM
+      const tools = [
+        {
+          type: 'function' as const,
+          function: {
+            name: 'query_topic_history',
+            description: 'Get recent message history for a specific MQTT topic. Use this when you need to see historical values or patterns in the data.',
+            parameters: {
+              type: 'object' as const,
+              properties: {
+                topic: {
+                  type: 'string',
+                  description: 'The MQTT topic path to query (e.g., "zigbee2mqtt/bedroom/lamp")',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of messages to return (default 10, max 20)',
+                },
+              },
+              required: ['topic'],
+            },
+          },
+        },
+        {
+          type: 'function' as const,
+          function: {
+            name: 'get_topic',
+            description: 'Get detailed information about a specific MQTT topic including its current value, message count, and metadata.',
+            parameters: {
+              type: 'object' as const,
+              properties: {
+                topic: {
+                  type: 'string',
+                  description: 'The MQTT topic path to query',
+                },
+              },
+              required: ['topic'],
+            },
+          },
+        },
+        {
+          type: 'function' as const,
+          function: {
+            name: 'list_children',
+            description: 'List all child topics (sub-topics) under a given MQTT topic path. Useful for exploring topic hierarchy.',
+            parameters: {
+              type: 'object' as const,
+              properties: {
+                topic: {
+                  type: 'string',
+                  description: 'The parent MQTT topic path (use empty string for root topics)',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of children to return (default 20, max 50)',
+                },
+              },
+              required: ['topic'],
+            },
+          },
+        },
+        {
+          type: 'function' as const,
+          function: {
+            name: 'list_parents',
+            description: 'Get the parent topic path hierarchy for a given MQTT topic. Shows the topic tree structure from root to the specified topic.',
+            parameters: {
+              type: 'object' as const,
+              properties: {
+                topic: {
+                  type: 'string',
+                  description: 'The MQTT topic path to get parents for',
+                },
+              },
+              required: ['topic'],
+            },
+          },
+        },
+      ]
+
       // Create LLM client with shared logic
       const llmClient = new LLMApiClient({
         apiKey,
         provider: envProvider,
         maxTokens: 1000,
+        tools,
       })
 
       // Log request details
@@ -503,7 +600,7 @@ async function startServer() {
       const startTime = Date.now()
       
       // Call LLM API using shared client
-      const apiResponse = await llmClient.chat(messages)
+      const apiResponse = await llmClient.chat(messagesWithToolResults)
       
       const endTime = Date.now()
 
@@ -528,7 +625,7 @@ async function startServer() {
           url: apiResponse.provider === 'openai' 
             ? 'https://api.openai.com/v1/chat/completions'
             : `https://generativelanguage.googleapis.com/v1beta/models/${apiResponse.model}:generateContent`,
-          messageCount: messages.length,
+          messageCount: messagesWithToolResults.length,
         },
         response: {
           contentLength: apiResponse.content.length,
@@ -550,6 +647,7 @@ async function startServer() {
       
       return {
         response: apiResponse.content,
+        toolCalls: apiResponse.toolCalls,
         debugInfo,
       }
     } catch (error: any) {
