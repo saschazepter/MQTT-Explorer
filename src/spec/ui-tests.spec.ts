@@ -714,7 +714,7 @@ describe('MQTT Explorer UI Tests', function () {
       console.log('Testing human-readable tool action display...')
       
       // Select a topic
-      await expandTopic(page, 'kitchen')
+      await expandTopic('kitchen', page)
       const coffeeNode = page.locator('[data-test-type="TreeNode"][data-test="coffee_maker"]')
       await coffeeNode.click()
       await sleep(500)
