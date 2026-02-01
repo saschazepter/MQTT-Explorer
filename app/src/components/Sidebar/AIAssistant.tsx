@@ -53,6 +53,101 @@ interface ChatMessage {
   }>
 }
 
+// Separate component for displaying tool calls with expand/collapse functionality
+function ToolCallsDisplay({ toolCalls, classes }: { toolCalls: Array<{id: string, name: string, arguments: string}>, classes: any }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (toolCalls.length === 0) {
+    return null
+  }
+
+  const getHumanReadableAction = (toolCall: {name: string, arguments: string}): string => {
+    try {
+      const args = JSON.parse(toolCall.arguments)
+      const topic = args.topic || args.topicPath || ''
+      
+      switch (toolCall.name) {
+        case 'list_children':
+          return `Listing children of ${topic || 'root'}`
+        case 'get_topic':
+          return `Getting details for ${topic}`
+        case 'query_topic_history':
+          const limit = args.limit || 10
+          return `Querying history for ${topic} (last ${limit} messages)`
+        case 'list_parents':
+          return `Getting parent hierarchy for ${topic}`
+        default:
+          return `Executing ${toolCall.name}`
+      }
+    } catch {
+      return `Executing ${toolCall.name}`
+    }
+  }
+
+  return (
+    <Box sx={{ mt: 1, mb: 1 }}>
+      <Card 
+        variant="outlined" 
+        sx={{ 
+          cursor: 'pointer',
+          backgroundColor: 'action.hover',
+          '&:hover': {
+            backgroundColor: 'action.selected',
+          }
+        }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <CardContent sx={{ py: 1, px: 2, '&:last-child': { pb: 1 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="caption" sx={{ fontWeight: 'medium', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <BuildIcon fontSize="small" />
+              {toolCalls.length} tool call{toolCalls.length > 1 ? 's' : ''} made
+            </Typography>
+            <IconButton size="small" sx={{ ml: 1 }}>
+              {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            </IconButton>
+          </Box>
+          
+          <Collapse in={expanded}>
+            <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {toolCalls.map((toolCall, idx) => {
+                let parsedArgs
+                try {
+                  parsedArgs = JSON.parse(toolCall.arguments)
+                } catch {
+                  parsedArgs = toolCall.arguments
+                }
+                
+                return (
+                  <Box key={idx} sx={{ pl: 1, borderLeft: '2px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                      {getHumanReadableAction(toolCall)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontSize: '0.7rem', color: 'text.disabled' }}>
+                      <strong>{toolCall.name}(</strong>
+                      {typeof parsedArgs === 'object' ? (
+                        Object.entries(parsedArgs).map(([key, value], i, arr) => (
+                          <span key={key}>
+                            <em>{key}</em>: <code>{JSON.stringify(value)}</code>
+                            {i < arr.length - 1 ? ', ' : ''}
+                          </span>
+                        ))
+                      ) : (
+                        <code>{parsedArgs}</code>
+                      )}
+                      <strong>)</strong>
+                    </Typography>
+                  </Box>
+                )
+              })}
+            </Box>
+          </Collapse>
+        </CardContent>
+      </Card>
+    </Box>
+  )
+}
+
 function AIAssistant(props: Props) {
   const { node, connectionId, classes } = props
   const [expanded, setExpanded] = useState(false)
@@ -401,42 +496,11 @@ function AIAssistant(props: Props) {
                   </Box>
                 )}
 
-                {/* Render tool calls if any */}
+                {/* Render tool calls if any - Always visible, expandable for debug details */}
                 {msg.toolCalls && msg.toolCalls.length > 0 && (
-                  <Box className={classes.toolCallsContainer}>
-                    <Alert severity="info" icon={<BuildIcon fontSize="small" />} className={classes.toolCallAlert}>
-                      <Typography variant="caption" fontWeight="bold" gutterBottom>
-                        🔧 Tool Calls ({msg.toolCalls.length})
-                      </Typography>
-                      {msg.toolCalls.map((toolCall, tIdx) => {
-                        let parsedArgs
-                        try {
-                          parsedArgs = JSON.parse(toolCall.arguments)
-                        } catch {
-                          parsedArgs = toolCall.arguments
-                        }
-                        return (
-                          <Box key={tIdx} className={classes.toolCall}>
-                            <Typography variant="caption" component="div">
-                              <strong>{toolCall.name}(</strong>
-                              {typeof parsedArgs === 'object' ? (
-                                Object.entries(parsedArgs).map(([key, value], i, arr) => (
-                                  <span key={key}>
-                                    <em>{key}</em>: <code>{JSON.stringify(value)}</code>
-                                    {i < arr.length - 1 ? ', ' : ''}
-                                  </span>
-                                ))
-                              ) : (
-                                <code>{parsedArgs}</code>
-                              )}
-                              <strong>)</strong>
-                            </Typography>
-                          </Box>
-                        )
-                      })}
-                    </Alert>
-                  </Box>
+                  <ToolCallsDisplay toolCalls={msg.toolCalls} classes={classes} />
                 )}
+
               </Box>
             ))}
 
@@ -446,37 +510,15 @@ function AIAssistant(props: Props) {
                 <Typography variant="caption" color="textSecondary" sx={{ ml: 1 }}>
                   Thinking...
                 </Typography>
-                {/* Show pending tool calls while thinking */}
-                {pendingToolCalls.length > 0 && (
-                  <Box sx={{ ml: 2, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    {pendingToolCalls.map((toolCall, idx) => {
-                      let parsedArgs
-                      try {
-                        parsedArgs = JSON.parse(toolCall.arguments)
-                      } catch {
-                        parsedArgs = toolCall.arguments
-                      }
-                      return (
-                        <Chip
-                          key={idx}
-                          label={
-                            <span>
-                              🔧 <strong>{toolCall.name}(</strong>
-                              {typeof parsedArgs === 'object' 
-                                ? Object.entries(parsedArgs).map(([k, v]) => `${k}: "${v}"`).join(', ')
-                                : parsedArgs}
-                              <strong>)</strong>
-                            </span>
-                          }
-                          size="small"
-                          variant="outlined"
-                          className={classes.pendingToolChip}
-                        />
-                      )
-                    })}
-                  </Box>
-                )}
               </Box>
+            )}
+
+            {/* Tool Calls - Always visible below Thinking, clickable to expand */}
+            {pendingToolCalls.length > 0 && (
+              <ToolCallsDisplay 
+                toolCalls={pendingToolCalls} 
+                classes={classes}
+              />
             )}
 
             <div ref={messagesEndRef} />
