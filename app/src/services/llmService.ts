@@ -735,45 +735,50 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
    * List child topics (200 token limit)
    */
   private listChildren(topicPath: string, limit: number, rootNode?: TopicNode): string {
-    console.log('listChildren called with topicPath:', topicPath, 'limit:', limit, 'hasRootNode:', !!rootNode)
+    console.log('='.repeat(60))
+    console.log('listChildren CALLED')
+    console.log('  topicPath:', JSON.stringify(topicPath), '(type:', typeof topicPath, ')')
+    console.log('  limit:', limit)
+    console.log('  hasRootNode:', !!rootNode)
+    if (rootNode) {
+      console.log('  rootNode.path():', rootNode.path?.() || 'unknown')
+    }
     
     // Special handling for root level (empty string or root)
     let node: TopicNode | null = null
     if (!topicPath || topicPath === '' || topicPath === '/' || topicPath.toLowerCase() === 'root') {
-      console.log('Listing children at root level')
+      console.log('  -> Treating as ROOT level query')
       node = rootNode || null
     } else {
+      console.log('  -> Searching for topic:', topicPath)
       node = rootNode ? this.findTopicNode(topicPath, rootNode) : null
     }
     
     if (!node) {
-      console.log('Topic node not found for path:', topicPath)
-      return `Topic not found: ${topicPath}`
+      console.error('  ERROR: Topic node not found for path:', topicPath)
+      console.error('  Is rootNode available?', !!rootNode)
+      return `Topic not found: ${topicPath}. The topic may not exist in the MQTT tree.`
     }
 
-    console.log('Node found, checking edges. Has edgeCollection:', !!node.edgeCollection)
-    console.log('Edge count:', node.edgeCollection?.edges?.length || 0)
+    console.log('  Node FOUND at path:', node.path?.() || 'unknown')
+    console.log('  Checking for children...')
+    console.log('  Has edgeCollection:', !!node.edgeCollection)
+    console.log('  Edge count:', node.edgeCollection?.edges?.length || 0)
 
     if (!node.edgeCollection?.edges || node.edgeCollection.edges.length === 0) {
-      console.log('No edges found in edgeCollection')
-      return `No child topics found for: ${topicPath}`
+      console.log('  -> No child topics (edges) found')
+      const nodePath = node.path?.() || topicPath
+      return `No child topics found under "${nodePath}". This topic has no sub-topics.`
     }
 
+    console.log('  Processing edges...')
     const children: string[] = []
     const maxChildren = Math.min(limit, 50)
+    const totalEdges = node.edgeCollection.edges.length
+    console.log('  Total edges:', totalEdges, '| Processing up to:', maxChildren)
     
-    for (const edge of node.edgeCollection.edges.slice(0, maxChildren)) {
-      console.log('Processing edge:', {
-        hasName: !!edge.name,
-        name: edge.name,
-        hasTopic: !!(edge as any).topic,
-        topic: (edge as any).topic,
-        hasNode: !!edge.node,
-        hasTarget: !!(edge as any).target,
-        edgeKeys: Object.keys(edge),
-      })
-      
-      // Try both edge.name and edge.topic (different versions might use different properties)
+    for (let i = 0; i < Math.min(totalEdges, maxChildren); i++) {
+      const edge = node.edgeCollection.edges[i]
       const edgeName = edge.name || (edge as any).topic
       const edgeNode = edge.node || (edge as any).target
       
@@ -783,13 +788,21 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         const childCount = edgeNode.childTopicCount?.() || 0
         const suffix = childCount > 0 ? ` (${childCount} subtopics)` : ''
         children.push(`${hasValue} ${childPath}${suffix}`)
+        console.log(`  [${i+1}/${maxChildren}] Found child: ${edgeName}${suffix}`)
+      } else {
+        console.warn(`  [${i+1}/${maxChildren}] SKIP: Missing name or node:`, { 
+          hasName: !!edgeName, 
+          hasNode: !!edgeNode 
+        })
       }
     }
 
-    console.log('Found', children.length, 'children')
+    console.log('  RESULT: Found', children.length, 'valid children out of', totalEdges, 'edges')
+    console.log('='.repeat(60))
 
     if (children.length === 0) {
-      return `No child topics found for: ${topicPath}`
+      const nodePath = node.path?.() || topicPath
+      return `No child topics found under "${nodePath}". The edges exist but have no valid names or nodes.`
     }
 
     const result = `Child topics (${children.length}):\n${children.join('\n')}`
