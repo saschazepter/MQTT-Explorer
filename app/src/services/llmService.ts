@@ -136,14 +136,19 @@ You have access to powerful tools to query MQTT topic information:
 4. **list_parents(topic)** - Get the parent topic path hierarchy to understand the topic tree structure
 
 **CRITICAL: Topic Path Requirements:**
-- **ONLY use EXACT topic paths** (e.g., "home/bedroom/lamp", "kitchen/sensor")
+- **Use EXACT topic paths as they appear** - match the format exactly
+- Topics may or may not have leading slashes - both are valid in MQTT
+  - "/home/test" and "home/test" are DIFFERENT topics (can coexist)
+  - Use the exact format that matches the actual topic in the tree
 - **NEVER use MQTT wildcards** (+ or #) in tool calls - they will NOT work
 - Wildcards are for subscriptions only, NOT for querying existing topics
 - To explore multiple topics, use list_children() first, then query each topic individually
 
 **Examples:**
-✅ CORRECT: get_topic("home/bedroom/lamp")
+✅ CORRECT: get_topic("home/bedroom/lamp")       // topic without leading slash
+✅ CORRECT: get_topic("/home/bedroom/lamp")      // topic WITH leading slash (if that's the actual topic)
 ✅ CORRECT: list_children("home/bedroom")
+✅ CORRECT: list_children("/devices")            // topics can have leading slashes
 ❌ WRONG: get_topic("home/+/lamp") - wildcards don't work!
 ❌ WRONG: list_children("home/#") - wildcards don't work!
 
