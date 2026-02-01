@@ -50,11 +50,103 @@ interface ChatMessage {
     id: string
     name: string
     arguments: string
+    result?: string
   }>
 }
 
-// Separate component for displaying tool calls with expand/collapse functionality
-function ToolCallsDisplay({ toolCalls, classes }: { toolCalls: Array<{id: string, name: string, arguments: string}>, classes: any }) {
+// Compact individual tool call chip component
+function ToolCallChip({ toolCall, classes }: { toolCall: {id: string, name: string, arguments: string, result?: string}, classes: any }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const getShortLabel = (): string => {
+    try {
+      const args = JSON.parse(toolCall.arguments)
+      const topic = args.topic || args.topicPath || ''
+      const shortTopic = topic.split('/').pop() || topic || 'root'
+      
+      switch (toolCall.name) {
+        case 'list_children':
+          return `📋 ${shortTopic}`
+        case 'get_topic':
+          return `📄 ${shortTopic}`
+        case 'query_topic_history':
+          return `📜 ${shortTopic}`
+        case 'list_parents':
+          return `📁 ${shortTopic}`
+        default:
+          return `🔧 ${toolCall.name}`
+      }
+    } catch {
+      return `🔧 ${toolCall.name}`
+    }
+  }
+
+  return (
+    <Box sx={{ display: 'inline-block', mr: 0.5, mb: 0.5 }}>
+      <Chip
+        label={getShortLabel()}
+        size="small"
+        variant="outlined"
+        onClick={() => setExpanded(!expanded)}
+        sx={{
+          fontSize: '0.7rem',
+          height: '22px',
+          cursor: 'pointer',
+          '& .MuiChip-label': {
+            px: 1,
+            py: 0.25,
+          },
+        }}
+      />
+      <Collapse in={expanded}>
+        <Paper 
+          variant="outlined" 
+          sx={{ 
+            mt: 0.5, 
+            p: 1, 
+            maxWidth: '300px',
+            backgroundColor: 'background.default',
+          }}
+        >
+          <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', mb: 0.5 }}>
+            {toolCall.name}
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontSize: '0.65rem', color: 'text.secondary', mb: 0.5, wordBreak: 'break-all' }}>
+            {toolCall.arguments}
+          </Typography>
+          {toolCall.result && (
+            <>
+              <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', mt: 0.5, mb: 0.25 }}>
+                Result:
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontSize: '0.65rem', color: 'text.secondary', maxHeight: '100px', overflow: 'auto', wordBreak: 'break-all' }}>
+                {toolCall.result}
+              </Typography>
+            </>
+          )}
+        </Paper>
+      </Collapse>
+    </Box>
+  )
+}
+
+// Display all tool calls as individual compact chips
+function ToolCallsDisplay({ toolCalls, classes }: { toolCalls: Array<{id: string, name: string, arguments: string, result?: string}>, classes: any }) {
+  if (toolCalls.length === 0) {
+    return null
+  }
+
+  return (
+    <Box sx={{ mt: 0.5, mb: 0.5, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      {toolCalls.map((toolCall, idx) => (
+        <ToolCallChip key={toolCall.id || idx} toolCall={toolCall} classes={classes} />
+      ))}
+    </Box>
+  )
+}
+
+// Helper function to merge tool calls with results (not used yet, but prepared for future)
+function ToolCallsDisplayOld({ toolCalls, classes }: { toolCalls: Array<{id: string, name: string, arguments: string, result?: string}>, classes: any }) {
   const [expanded, setExpanded] = useState(false)
 
   if (toolCalls.length === 0) {

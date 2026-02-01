@@ -898,9 +898,9 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       let debugInfo = result.debugInfo
       let toolCalls = result.toolCalls
       
-      // Save the FIRST set of tool calls to show in UI
+      // Save the FIRST set of tool calls with results to show in UI
       // (subsequent rounds might have more tool calls, but showing the first set is most useful)
-      const initialToolCalls = toolCalls && toolCalls.length > 0 ? [...toolCalls] : undefined
+      const initialToolCallsWithResults: Array<{id: string, name: string, arguments: string, result?: string}> = []
 
       // If LLM requested tool calls, execute them and get final response
       if (toolCalls && toolCalls.length > 0) {
@@ -915,7 +915,11 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
           // Return what we have (empty response with tool calls for debugging)
           return {
             response: 'Tool execution not available (no topic context)',
-            toolCalls,
+            toolCalls: toolCalls.map((tc: any) => ({
+              id: tc.id,
+              name: tc.function?.name || tc.name,
+              arguments: tc.function?.arguments || tc.arguments,
+            })),
             debugInfo,
           }
         }
@@ -938,16 +942,26 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
           tool_calls: toolCalls, // Include original tool calls
         })
 
-        // Execute all tool calls
+        // Execute all tool calls and capture results for UI
         const toolResults = await Promise.all(
-          toolCalls.map((tc: any) => {
+          toolCalls.map(async (tc: any) => {
             // Transform OpenAI tool call format to our format
             const toolCall = {
               id: tc.id,
               name: tc.function?.name || tc.name,
               arguments: tc.function?.arguments || tc.arguments,
             }
-            return this.executeTool(toolCall, rootNode || undefined)
+            const result = await this.executeTool(toolCall, rootNode || undefined)
+            
+            // Save tool call with its result for UI display
+            initialToolCallsWithResults.push({
+              id: toolCall.id,
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+              result: result.content,
+            })
+            
+            return result
           })
         )
 
@@ -1058,7 +1072,7 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
 
       return {
         response: assistantMessage || '',
-        toolCalls: initialToolCalls, // Return the FIRST set of tool calls to show in UI
+        toolCalls: initialToolCallsWithResults.length > 0 ? initialToolCallsWithResults : undefined, // Return tool calls with results
         debugInfo,
       }
     } catch (error: unknown) {
