@@ -54,6 +54,22 @@ interface ChatMessage {
   }>
 }
 
+// Helper to get readable name for tool
+const getReadableName = (toolName: string): string => {
+  switch (toolName) {
+    case 'list_children':
+      return 'List Topics'
+    case 'get_topic':
+      return 'Get Details'
+    case 'query_topic_history':
+      return 'Query History'
+    case 'list_parents':
+      return 'Get Parents'
+    default:
+      return toolName
+  }
+}
+
 // Compact individual tool call chip component
 function ToolCallChip({ toolCall, classes }: { toolCall: {id: string, name: string, arguments: string, result?: string}, classes: any }) {
   const [expanded, setExpanded] = useState(false)
@@ -63,21 +79,22 @@ function ToolCallChip({ toolCall, classes }: { toolCall: {id: string, name: stri
       const args = JSON.parse(toolCall.arguments)
       const topic = args.topic || args.topicPath || ''
       const shortTopic = topic.split('/').pop() || topic || 'root'
+      const readableName = getReadableName(toolCall.name)
       
       switch (toolCall.name) {
         case 'list_children':
-          return `📋 ${shortTopic}`
+          return `📋 ${readableName}: ${shortTopic}`
         case 'get_topic':
-          return `📄 ${shortTopic}`
+          return `📄 ${readableName}: ${shortTopic}`
         case 'query_topic_history':
-          return `📜 ${shortTopic}`
+          return `📜 ${readableName}: ${shortTopic}`
         case 'list_parents':
-          return `📁 ${shortTopic}`
+          return `📁 ${readableName}: ${shortTopic}`
         default:
-          return `🔧 ${toolCall.name}`
+          return `🔧 ${readableName}`
       }
     } catch {
-      return `🔧 ${toolCall.name}`
+      return `🔧 ${getReadableName(toolCall.name)}`
     }
   }
 
@@ -109,7 +126,7 @@ function ToolCallChip({ toolCall, classes }: { toolCall: {id: string, name: stri
           }}
         >
           <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', mb: 0.5 }}>
-            {toolCall.name}
+            {getReadableName(toolCall.name)}
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontSize: '0.65rem', color: 'text.secondary', mb: 0.5, wordBreak: 'break-all' }}>
             {toolCall.arguments}
@@ -324,8 +341,8 @@ function AIAssistant(props: Props) {
           if (toolCalls && toolCalls.length > 0) {
             setPendingToolCalls(toolCalls.map(tc => ({
               id: tc.id,
-              name: tc.function.name,
-              arguments: tc.function.arguments
+              name: tc.function?.name || tc.name,
+              arguments: tc.function?.arguments || tc.arguments
             })))
           }
         })
@@ -345,8 +362,8 @@ function AIAssistant(props: Props) {
           questionProposals: parsed.questions,
           toolCalls: llmResponse.toolCalls?.map(tc => ({
             id: tc.id,
-            name: tc.function.name,
-            arguments: tc.function.arguments,
+            name: tc.function?.name || tc.name,
+            arguments: tc.function?.arguments || tc.arguments,
           })),
           debugInfo: llmResponse.debugInfo, // Store debug info
         }
