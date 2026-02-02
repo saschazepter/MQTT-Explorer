@@ -527,28 +527,19 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
     return current
   }
 
-  /**
-   * Normalize topic path by removing leading/trailing slashes
-   */
-  private normalizePath(path: string): string {
-    return path.replace(/^\/+/, '').replace(/\/+$/, '')
-  }
-
   private findTopicNode(topicPath: string, currentNode?: TopicNode): TopicNode | null {
     if (!currentNode) {
       return null
     }
 
-    // Normalize paths to handle leading/trailing slashes
-    const normalizedTopicPath = this.normalizePath(topicPath)
+    // Use exact path matching - do NOT normalize to preserve topic name integrity
     const currentPath = currentNode.path?.() || ''
-    const normalizedCurrentPath = this.normalizePath(currentPath)
 
-    console.log('findTopicNode: looking for', normalizedTopicPath, 'at', normalizedCurrentPath)
+    console.log('findTopicNode: looking for', topicPath, 'at', currentPath)
 
     // If current node matches, return it
-    if (normalizedCurrentPath === normalizedTopicPath) {
-      console.log('findTopicNode: FOUND match at', normalizedCurrentPath)
+    if (currentPath === topicPath) {
+      console.log('findTopicNode: FOUND match at', currentPath)
       return currentNode
     }
 
@@ -560,11 +551,11 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
         
         if (edgeNode && edgeName) {
           // Build the full path to this edge
-          const edgePath = normalizedCurrentPath ? `${normalizedCurrentPath}/${edgeName}` : edgeName
+          const edgePath = currentPath ? `${currentPath}/${edgeName}` : edgeName
           
           // Only recurse if this edge is on the path to our target
           // Either it IS the target, or the target starts with this path
-          if (normalizedTopicPath === edgePath || normalizedTopicPath.startsWith(edgePath + '/')) {
+          if (topicPath === edgePath || topicPath.startsWith(edgePath + '/')) {
             console.log('findTopicNode: Following edge', edgeName, 'path:', edgePath)
             const found = this.findTopicNode(topicPath, edgeNode)
             if (found) {
@@ -575,7 +566,7 @@ Help users understand their MQTT data, troubleshoot issues, optimize their autom
       }
     }
 
-    console.log('findTopicNode: Not found at', normalizedCurrentPath)
+    console.log('findTopicNode: Not found at', currentPath)
     return null
   }
 
